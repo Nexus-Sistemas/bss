@@ -70,6 +70,46 @@ SELECT e.mes AS mes_faltante, e.id_empresa
 """
 
 
+# Fórmula REFINADA (decisão BSS 23/07): boleto, incluindo cancelados, mas o mês
+# só conta como falha se a empresa estava ATIVA naquele mês. Proxy de "estava
+# ativa": a janela vai do 1º boleto até o mês atual SE a empresa ainda tem
+# trabalhador ativo hoje; se está dormente (0 ativos), a janela para no ÚLTIMO
+# boleto — assim os meses após ela parar de operar não viram irregularidade.
+SQL_BOLETO_REFINADO = """
+WITH primeiro AS (
+    SELECT id_empresa, MIN(mes_referencia) AS desde,
+           MAX(mes_referencia) AS ultimo
+      FROM bss.boleto
+     WHERE mes_referencia IS NOT NULL
+     GROUP BY id_empresa
+),
+esperados AS (
+    SELECT p.id_empresa, gs::DATE AS mes
+      FROM primeiro p
+      JOIN bss.empresa e ON e.id = p.id_empresa
+      CROSS JOIN LATERAL generate_series(
+          p.desde,
+          -- fim da janela: mês passado se ainda ativa; senão, o último boleto
+          CASE WHEN e.qtd_trabalhadores_ativos > 0
+               THEN (DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '1 month')::DATE
+               ELSE p.ultimo END,
+          INTERVAL '1 month'
+      ) AS gs
+),
+gerados AS (
+    SELECT DISTINCT id_empresa, mes_referencia
+      FROM bss.boleto
+     WHERE mes_referencia IS NOT NULL
+)
+SELECT e.mes AS mes_faltante, e.id_empresa
+  FROM esperados e
+  LEFT JOIN gerados g
+         ON g.id_empresa = e.id_empresa
+        AND g.mes_referencia = e.mes
+ WHERE g.mes_referencia IS NULL
+"""
+
+
 def _matriz(cur, sql_faltantes: str, rotulo: str) -> None:
     """Compara uma fórmula contra bss.empresa.regularidade (a do legado)."""
     cur.execute(
@@ -132,6 +172,15 @@ def main() -> None:
             cur,
             SQL_POR_BOLETO.format(filtro_status="AND status <> 'cancelado'"),
             "boleto — desconsiderando cancelados",
+        )
+
+        # (4) REFINADA (decisão BSS): boleto + cancelados, mas mês só conta se a
+        #     empresa estava ativa (janela para no último boleto se dormente).
+        #     Esperado: MELHOR que (2), aproximando dos 100% do legado.
+        _matriz(
+            cur,
+            SQL_BOLETO_REFINADO,
+            "boleto + cancelados, só meses com empresa ativa (REFINADA)",
         )
 
         # Sanidade: as duas fontes cobrem as mesmas empresas?

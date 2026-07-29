@@ -194,6 +194,52 @@ têm tabela (ver §4).
    não há beneficiário. Não é sobre quem o benefício ajuda — é sobre quem
    assina o recibo.
 
+   ### ✅ REGRA FINAL — medida nos 19 mil processos (23/07/2026)
+
+   `scripts/analisar_beneficiario.py` comparou `beneficiario_cpf` com o CPF do
+   trabalhador em cada processo. Resultado que **corrige a teoria por tipo**:
+
+   | Tipo | % em que o beneficiário É OUTRA pessoa |
+   |---|---|
+   | Falecimento | **95%** (o trabalhador morreu) |
+   | Natalidade | 22% |
+   | Auxílio Creche | 17% |
+   | Consulta Médica | 3% |
+   | Acidente | **1%** |
+   | Incapacitação | **0%** |
+   | Exame / Brinde | 0% |
+   | Reembolso Rescisão | caso à parte (vai pra empresa) |
+
+   **Acidente e Incapacitação praticamente SEMPRE pagam ao próprio trabalhador**
+   — a suposição anterior (de que ele "não poderia receber") estava errada. E o
+   dado decisivo: **68,8% dos beneficiários preenchidos repetem o CPF do próprio
+   trabalhador** — campo obrigatório sendo preenchido só pra salvar. Ruído.
+
+   **Duas seções INDEPENDENTES — não confundir:**
+
+   - **(A) Dados complementares do trabalhador** — aparecem SEMPRE, mesmo quando
+     quem recebe é o próprio trabalhador. São os campos obrigatórios só na hora
+     do benefício (data de nascimento, nome da mãe, RG, gênero) que a carga
+     mensal por planilha não traz. Gravam em `bss.trabalhador` e são
+     **reaproveitados no próximo benefício** (se já vieram antes, aparecem
+     preenchidos). O formulário de benefício é a oportunidade de engordar o
+     cadastro — a planilha sobe o mínimo (CPF, nome, sindicato), o benefício
+     completa.
+   - **(B) Bloco Beneficiário** — só quando OUTRA pessoa recebe (regra abaixo).
+
+   **Desenho do formulário (o bloco B não é por tipo — é uma escolha por caso):**
+
+   - Uma pergunta: **"Quem vai receber? ( ) O próprio trabalhador [padrão]
+     ( ) Outra pessoa"**.
+   - "Próprio trabalhador" → sem bloco extra, `grau_parentesco = 'proprio'`.
+   - "Outra pessoa" → abre o bloco (nome, CPF, telefone, grau, nascimento).
+     Graus reais no legado: cônjuge (o mais comum), próprio, pai/mãe, filho(a),
+     irmão, terceiro.
+   - **Falecimento** já abre com "outra pessoa" pré-selecionado.
+   - **NUNCA obrigar** o bloco quando é o próprio trabalhador — forçar só recria
+     os 69% de lixo do legado.
+   - **Reembolso Rescisão**: sem beneficiário pessoa; conta da empresa.
+
    **Três destinatários possíveis**, e o schema já previu dois deles em
    `bss.dados_bancarios.titular_tipo` ('empresa' | 'beneficiario'):
 
