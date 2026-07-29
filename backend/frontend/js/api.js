@@ -42,9 +42,32 @@ async function apiFetch(path, options = {}) {
   }
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}));
-    throw new Error(err.detail || `Erro ${resp.status}`);
+    throw new Error(_msgErro(err, resp.status));
   }
   return resp.json();
+}
+
+
+/**
+ * Extrai uma mensagem LEGÍVEL do corpo de erro da API.
+ *
+ * FastAPI devolve `detail` como STRING (nossos HTTPException) OU como LISTA de
+ * objetos (erros de validação 422): [{loc, msg, type}, ...]. Jogar isso direto
+ * num Error vira "[object Object]" — foi o que apareceu na emissão de boleto.
+ * Aqui tratamos os dois formatos.
+ */
+function _msgErro(err, status) {
+  const d = err && err.detail;
+  if (typeof d === "string") return d;
+  if (Array.isArray(d)) {
+    // erros de validação: junta os msg (e o campo, quando dá)
+    return d.map(x => {
+      const campo = Array.isArray(x.loc) ? x.loc[x.loc.length - 1] : "";
+      return campo ? `${campo}: ${x.msg}` : (x.msg || JSON.stringify(x));
+    }).join("; ");
+  }
+  if (d && typeof d === "object") return JSON.stringify(d);
+  return `Erro ${status}`;
 }
 
 
