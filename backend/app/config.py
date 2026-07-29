@@ -28,6 +28,18 @@ class Settings(BaseSettings):
     JWT_ALGORITHM:      str = "HS256"
     JWT_EXPIRE_MINUTES: int = 480  # 8h
 
+    # === Storage de documentos ===
+    # Onde os arquivos enviados (certidões, comprovantes) são gravados.
+    #   'local' → disco do servidor (dev/homolog na OCI)
+    #   's3'    → Amazon S3 (produção) — trocar só a config, o código não muda
+    # O caminho local deve ficar FORA do diretório servido estaticamente e FORA
+    # do repositório git (documento é dado pessoal, LGPD; não versionar).
+    STORAGE_BACKEND:   str = "local"
+    STORAGE_LOCAL_DIR: str = "/home/opc/bss-storage"
+    # Produção (quando STORAGE_BACKEND='s3'):
+    STORAGE_S3_BUCKET: str = ""
+    STORAGE_S3_REGIAO: str = "us-east-1"
+
     # === E-mail (SMTP) ===
     # Tudo opcional: sem SMTP_HOST o envio é desligado e o app roda igual —
     # notificação nunca pode ser pré-requisito pro sistema funcionar.
