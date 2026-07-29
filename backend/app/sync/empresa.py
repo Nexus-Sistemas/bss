@@ -68,7 +68,11 @@ SQL_UPSERT = """
             telefone        = EXCLUDED.telefone,
             status          = EXCLUDED.status,
             adimplencia     = EXCLUDED.adimplencia,
-            regularidade    = EXCLUDED.regularidade,
+            -- regularidade NÃO é atualizada pela sync de propósito: a partir da
+            -- migração 24 ela é CALCULADA por nós (gap de boleto), não copiada
+            -- do legado. Copiar aqui recriaria o cabo-de-guerra (sync sobrescreve
+            -- o cálculo toda noite). Fica no INSERT só como semente inicial; quem
+            -- mantém é scripts/reconciliar_regularidade.py.
             recebe_email_financeiro     = EXCLUDED.recebe_email_financeiro,
             qtd_trabalhadores_ativos    = EXCLUDED.qtd_trabalhadores_ativos,
             qtd_trabalhadores_inativos  = EXCLUDED.qtd_trabalhadores_inativos,
