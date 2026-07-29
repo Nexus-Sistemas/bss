@@ -9,11 +9,14 @@ GET  /processos/aguardando-resposta/contagem → número do sino
 
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+import json
+
+from fastapi import (APIRouter, BackgroundTasks, Depends, File, Form,
+                     HTTPException, UploadFile)
 from pydantic import BaseModel, field_validator
 
 from .auth import UsuarioInfo, usuario_logado
-from . import notificacao, processo_repo
+from . import notificacao, processo_repo, storage, tipo_beneficio_repo, trabalhador_repo
 
 
 router = APIRouter(prefix="/processos", tags=["processos"])
@@ -74,6 +77,130 @@ def listar(
         id_usuario_leitura=uid_leitura, so_nao_lidas=so_nao_lidas,
         pagina=pagina, por_pagina=por_pagina, ordem=ordem, desc=desc,
     )
+
+
+# Teto por arquivo (o nginx de produção aceita 25M; alinhar com ele).
+_MAX_ARQUIVO = 25 * 1024 * 1024
+
+
+@router.post("", status_code=201)
+async def criar(
+    usuario: Annotated[UsuarioInfo, Depends(usuario_logado)],
+    # Campos estruturados vão num JSON string (multipart não carrega objeto):
+    dados: Annotated[str, Form()],
+    # Arquivos + a categoria (código do tipo de documento) de cada um, em
+    # arrays paralelos — arquivos[i] pertence a categorias[i].
+    arquivos: Annotated[list[UploadFile], File()] = [],
+    categorias: Annotated[list[str], Form()] = [],
+):
+    """
+    Abre um benefício: cria o processo, grava os documentos e atualiza os
+    complementares do trabalhador — tudo atômico. Não salva sem os documentos
+    obrigatórios do tipo.
+
+    `dados` (JSON): { cpf, tipo (codigo), data_evento, qtd_bebes,
+        trabalhador: {data_nascimento, data_admissao, genero, nome_mae, rg},
+        quem_recebe: 'proprio'|'outra',
+        beneficiario: {nome, cpf, telefone, data_nasc, grau_parentesco,
+                       nome_mae, cep, logradouro, numero, complemento,
+                       bairro, cidade, uf}  # só se quem_recebe='outra'
+    }
+    """
+    try:
+        d = json.loads(dados)
+    except json.JSONDecodeError:
+        raise HTTPException(400, "dados inválidos (JSON malformado)")
+
+    # 1) Trabalhador + ESCOPO (empresa só abre pra trabalhador das suas empresas)
+    trab = trabalhador_repo.buscar_por_cpf(d.get("cpf", ""))
+    if not trab:
+        raise HTTPException(404, "Trabalhador não encontrado")
+    if usuario.perfil == "empresa" and trab["id_empresa_atual"] not in usuario.empresas:
+        raise HTTPException(403, "Trabalhador fora da sua cobertura")
+    if usuario.perfil == "sindicato" and trab["id_sindicato_atual"] not in usuario.sindicatos:
+        raise HTTPException(403, "Trabalhador fora do seu escopo")
+
+    # 2) Cobertura (pode abrir benefício?)
+    motivo = trabalhador_repo.motivo_bloqueio(trab["id"])
+    if motivo:
+        raise HTTPException(422, f"Não é possível abrir benefício: {motivo}")
+
+    # 3) Tipo + o que ele exige
+    tipo = tipo_beneficio_repo.form_do_tipo(d.get("tipo", ""))
+    if not tipo:
+        raise HTTPException(400, "Tipo de benefício inválido")
+
+    # 4) Validação dos documentos obrigatórios ANTES de salvar arquivo (não
+    #    gravar lixo no storage se vai recusar).
+    if len(arquivos) != len(categorias):
+        raise HTTPException(400, "arquivos e categorias não batem")
+    enviados = {c for c, a in zip(categorias, arquivos) if a and a.filename}
+    doc_por_codigo = {doc["codigo"]: doc for doc in tipo["documentos"]}
+    obrigatorios = {doc["codigo"] for doc in tipo["documentos"] if doc["obrigatorio"]}
+    faltando = obrigatorios - enviados
+    if faltando:
+        nomes = [doc_por_codigo[c]["nome"] for c in faltando]
+        raise HTTPException(422, "Documentos obrigatórios faltando: " + ", ".join(nomes))
+
+    # 5) Salva os arquivos no storage (fora da transação — I/O). Se algum tipo
+    #    de documento não pertence ao tipo de benefício, recusa.
+    documentos = []
+    for arq, cat in zip(arquivos, categorias):
+        if not arq or not arq.filename:
+            continue
+        if cat not in doc_por_codigo:
+            raise HTTPException(400, f"Documento '{cat}' não pertence a este tipo")
+        conteudo = await arq.read()
+        if len(conteudo) > _MAX_ARQUIVO:
+            raise HTTPException(413, f"Arquivo '{arq.filename}' excede 25 MB")
+        ref = storage.salvar(conteudo, arq.filename)
+        documentos.append({
+            "id_tipo_documento": None,   # resolvido logo abaixo
+            "codigo": cat, "nome": arq.filename, "ref": ref,
+            "mime": arq.content_type, "tamanho": len(conteudo),
+        })
+
+    # id_tipo_documento: o form_do_tipo devolve codigo/nome/obrigatorio/ordem,
+    # mas não o id. Buscamos o id de cada tipo de documento deste benefício.
+    ids_tipo_doc = tipo_beneficio_repo.ids_tipo_documento(tipo["id"])
+    for doc in documentos:
+        doc["id_tipo_documento"] = ids_tipo_doc.get(doc["codigo"])
+
+    # 6) Beneficiário só se 'outra pessoa'
+    beneficiario = d.get("beneficiario") if d.get("quem_recebe") == "outra" else None
+
+    # 6b) Dados bancários só se o tipo pede. O titular_tipo vem da config do
+    #     tipo ('beneficiario' ou 'empresa'), não da tela — a tela só coleta a
+    #     conta; quem decide de quem ela é, é o tipo de benefício.
+    dados_bancarios = None
+    tipo_conta_dono = tipo["campos"].get("dados_bancarios")
+    if tipo_conta_dono:
+        db = d.get("dados_bancarios") or {}
+        db["titular_tipo"] = tipo_conta_dono
+        dados_bancarios = db
+
+    # 7) Grava tudo, atômico
+    trab_c = d.get("trabalhador", {})
+    resultado = processo_repo.criar_beneficio(
+        id_trabalhador=trab["id"],
+        id_empresa=trab["id_empresa_atual"],
+        id_sindicato=trab["id_sindicato_atual"],
+        id_tipo_beneficio=tipo["id"],
+        data_evento=d.get("data_evento"),
+        qtd_bebes=d.get("qtd_bebes"),
+        id_usuario=usuario.id,
+        trab_complementos={
+            "data_nascimento": trab_c.get("data_nascimento") or None,
+            "data_admissao": trab_c.get("data_admissao") or None,
+            "genero": trab_c.get("genero") or None,
+            "nome_mae": trab_c.get("nome_mae") or None,
+            "rg": trab_c.get("rg") or None,
+        },
+        beneficiario=beneficiario,
+        dados_bancarios=dados_bancarios,
+        documentos=documentos,
+    )
+    return resultado
 
 
 def _processo_no_escopo(id_processo: int, usuario: UsuarioInfo) -> dict:

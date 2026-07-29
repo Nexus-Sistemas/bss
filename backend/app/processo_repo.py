@@ -610,6 +610,148 @@ def contar_nao_lidas(
             return cur.fetchone()["qtd"]
 
 
+def criar_beneficio(
+    *,
+    id_trabalhador: int,
+    id_empresa: int | None,
+    id_sindicato: int | None,
+    id_tipo_beneficio: int,
+    data_evento,
+    qtd_bebes: int | None,
+    id_usuario: int,
+    # complementares do trabalhador (gravam nele, reaproveitados):
+    trab_complementos: dict[str, Any],
+    # beneficiário (só se 'outra pessoa'; senão vazio):
+    beneficiario: dict[str, Any] | None,
+    # dados bancários (só nos tipos que pedem; senão None):
+    dados_bancarios: dict[str, Any] | None,
+    # documentos já salvos no storage: [{id_tipo_documento, nome, ref, mime, tamanho, categoria}]
+    documentos: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """
+    Cria o benefício em UMA transação: processo + documentos + atualização dos
+    complementares do trabalhador. Se qualquer passo falhar, nada é gravado.
+
+    A validação de "todos os obrigatórios presentes" é feita no ROUTER antes de
+    salvar arquivo (pra não gravar lixo no storage). Aqui só persiste.
+    """
+    with get_pg_connection() as conn:
+        with conn.cursor() as cur:
+            # 1) Complementos do trabalhador — COALESCE pra não apagar o que já
+            #    existe se a tela mandar vazio (só preenche o que veio).
+            cur.execute(
+                """
+                UPDATE bss.trabalhador SET
+                    data_nascimento = COALESCE(%(data_nascimento)s, data_nascimento),
+                    data_admissao   = COALESCE(%(data_admissao)s, data_admissao),
+                    genero          = COALESCE(%(genero)s, genero),
+                    nome_mae        = COALESCE(%(nome_mae)s, nome_mae),
+                    rg              = COALESCE(%(rg)s, rg),
+                    atualizado_em   = NOW()
+                 WHERE id = %(id)s
+                """,
+                {**trab_complementos, "id": id_trabalhador},
+            )
+
+            # 2) Protocolo + processo
+            cur.execute("SELECT numero, protocolo FROM bss.gerar_protocolo()")
+            p = cur.fetchone()
+            b = beneficiario or {}
+            cur.execute(
+                """
+                INSERT INTO bss.processo_beneficio (
+                    numero_processo, protocolo,
+                    id_trabalhador, id_empresa, id_sindicato, id_tipo_beneficio,
+                    status, data_evento, qtd_bebes,
+                    beneficiario_nome, beneficiario_cpf, beneficiario_telefone,
+                    beneficiario_data_nasc, beneficiario_grau_parentesco,
+                    beneficiario_nome_mae,
+                    beneficiario_endereco_logradouro, beneficiario_endereco_numero,
+                    beneficiario_endereco_complemento, beneficiario_endereco_bairro,
+                    beneficiario_endereco_cidade, beneficiario_endereco_uf,
+                    beneficiario_endereco_cep,
+                    ultima_atualizacao_portal_em
+                ) VALUES (
+                    %(numero)s, %(protocolo)s,
+                    %(id_trab)s, %(id_emp)s, %(id_sind)s, %(id_tipo)s,
+                    'andamento_inicial', %(data_evento)s, %(qtd_bebes)s,
+                    %(b_nome)s, %(b_cpf)s, %(b_tel)s,
+                    %(b_nasc)s, %(b_grau)s, %(b_mae)s,
+                    %(b_log)s, %(b_num)s, %(b_compl)s, %(b_bairro)s,
+                    %(b_cidade)s, %(b_uf)s, %(b_cep)s,
+                    NOW()
+                ) RETURNING id
+                """,
+                {
+                    "numero": p["numero"], "protocolo": p["protocolo"],
+                    "id_trab": id_trabalhador, "id_emp": id_empresa,
+                    "id_sind": id_sindicato, "id_tipo": id_tipo_beneficio,
+                    "data_evento": data_evento, "qtd_bebes": qtd_bebes,
+                    "b_nome": b.get("nome"), "b_cpf": b.get("cpf"),
+                    "b_tel": b.get("telefone"), "b_nasc": b.get("data_nasc"),
+                    "b_grau": b.get("grau_parentesco"), "b_mae": b.get("nome_mae"),
+                    "b_log": b.get("logradouro"), "b_num": b.get("numero"),
+                    "b_compl": b.get("complemento"), "b_bairro": b.get("bairro"),
+                    "b_cidade": b.get("cidade"), "b_uf": b.get("uf"),
+                    "b_cep": b.get("cep"),
+                },
+            )
+            id_processo = cur.fetchone()["id"]
+
+            # 3) Documentos: bss.documento (arquivo) + bss.processo_documento (vínculo)
+            for d in documentos:
+                cur.execute(
+                    """
+                    INSERT INTO bss.documento (
+                        nome_original, arquivo_url, mime_type, tamanho_bytes,
+                        entidade_tipo, entidade_id, categoria, enviado_por_id
+                    ) VALUES (%s, %s, %s, %s, 'processo', %s, %s, %s)
+                    RETURNING id
+                    """,
+                    (d["nome"], d["ref"], d.get("mime"), d.get("tamanho"),
+                     id_processo, d.get("categoria"), id_usuario),
+                )
+                id_doc = cur.fetchone()["id"]
+                cur.execute(
+                    """
+                    INSERT INTO bss.processo_documento (
+                        id_processo, id_tipo_documento, id_documento, versao, status
+                    ) VALUES (%s, %s, %s, 1, 'pendente')
+                    """,
+                    (id_processo, d["id_tipo_documento"], id_doc),
+                )
+
+            # 4) Dados bancários (quando o tipo pede — falecimento/incapacitação/
+            #    reembolso). titular_tipo diz de quem é a conta ('beneficiario'
+            #    ou 'empresa'), decidido pela config do tipo.
+            if dados_bancarios and dados_bancarios.get("titular_tipo"):
+                db = dados_bancarios
+                cur.execute(
+                    """
+                    INSERT INTO bss.dados_bancarios (
+                        id_processo, titular_tipo, cnpj_cpf_titular,
+                        banco_codigo, agencia, conta, digito, tipo_conta, chave_pix
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (id_processo, db["titular_tipo"], db.get("cnpj_cpf_titular"),
+                     db.get("banco_codigo"), db.get("agencia"), db.get("conta"),
+                     db.get("digito"), db.get("tipo_conta"), db.get("chave_pix")),
+                )
+
+            # 5) Andamento inicial (audit trail)
+            cur.execute(
+                """
+                INSERT INTO bss.processo_andamento
+                       (id_processo, status_anterior, status_novo, usuario_id, automatico)
+                VALUES (%s, NULL, 'andamento_inicial', %s, FALSE)
+                """,
+                (id_processo, id_usuario),
+            )
+
+        conn.commit()
+    return {"id": id_processo, "protocolo": p["protocolo"], "numero": p["numero"]}
+
+
 def contar_aguardando_resposta(
     ids_empresa: list[int] | None = None,
     ids_sindicato: list[int] | None = None,

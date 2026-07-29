@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Novo Benefício — BSS</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50">
+  <div class="flex h-screen overflow-hidden">
+    <aside id="sidebar" class="w-60 flex-shrink-0"></aside>
+
+    <div class="flex-1 flex flex-col overflow-hidden">
+      <header class="bg-white border-b border-slate-200 flex-shrink-0">
+        <div class="px-6 py-4 flex items-center justify-between">
+          <h1 class="text-xl font-semibold text-slate-800">Novo Benefício</h1>
+          <div class="flex items-center gap-3 text-sm">
+            <span id="usuario-info" class="text-slate-500">—</span>
+            <button onclick="logout()" class="text-slate-500 hover:text-slate-800">Sair</button>
+          </div>
+        </div>
+      </header>
+
+      <main class="flex-1 overflow-y-auto p-6">
+        <div class="max-w-3xl mx-auto space-y-6">
+
+          <!-- 1. Busca por CPF -->
+          <section class="bg-white rounded-xl border border-slate-200 p-5">
+            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+              CPF do Trabalhador / Dependente
+            </label>
+            <div class="flex gap-2">
+              <input id="f-cpf" type="text" placeholder="Digite o CPF (com ou sem pontos)"
+                     class="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                     onkeydown="if(event.key==='Enter') buscarCpf()">
+              <button onclick="buscarCpf()"
+                      class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium">
+                Buscar
+              </button>
+            </div>
+            <div id="busca-status" class="mt-2 text-sm"></div>
+          </section>
+
+          <!-- 2..N: formulário, revelado após achar o trabalhador -->
+          <form id="form-beneficio" class="hidden space-y-6">
+
+            <!-- Trabalhador (leitura) + complementares -->
+            <section class="bg-white rounded-xl border border-slate-200 p-5">
+              <h2 class="font-semibold text-slate-700 mb-3">Trabalhador</h2>
+              <div id="trab-cabecalho" class="grid grid-cols-2 gap-3 text-sm mb-4"></div>
+
+              <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                Dados complementares (obrigatórios para o benefício)
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <label class="text-sm">Data de nascimento *
+                  <input id="t-nascimento" type="date" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg"></label>
+                <label class="text-sm">Data de admissão *
+                  <input id="t-admissao" type="date" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg"></label>
+                <label class="text-sm">Gênero
+                  <select id="t-genero" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
+                    <option value="">—</option><option>Feminino</option><option>Masculino</option><option>Outro</option>
+                  </select></label>
+                <label class="text-sm">RG
+                  <input id="t-rg" type="text" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg"></label>
+                <label class="text-sm col-span-2">Nome da mãe *
+                  <input id="t-nome-mae" type="text" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg"></label>
+              </div>
+            </section>
+
+            <!-- Benefício -->
+            <section class="bg-white rounded-xl border border-slate-200 p-5">
+              <h2 class="font-semibold text-slate-700 mb-3">Benefício</h2>
+              <div class="grid grid-cols-2 gap-3">
+                <label class="text-sm">Tipo de benefício *
+                  <select id="b-tipo" onchange="carregarTipo()"
+                          class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
+                    <option value="">Selecione…</option>
+                  </select></label>
+                <label class="text-sm">Data do evento *
+                  <input id="b-data-evento" type="date" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg"></label>
+                <label id="wrap-bebes" class="text-sm hidden">Quantidade de bebês *
+                  <input id="b-qtd-bebes" type="number" min="1" value="1"
+                         class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg"></label>
+              </div>
+            </section>
+
+            <!-- Quem recebe / Beneficiário (revelado conforme o tipo) -->
+            <section id="sec-beneficiario" class="bg-white rounded-xl border border-slate-200 p-5 hidden">
+              <h2 class="font-semibold text-slate-700 mb-3">Quem vai receber?</h2>
+              <div class="flex gap-4 mb-4 text-sm">
+                <label class="inline-flex items-center gap-2">
+                  <input type="radio" name="quem-recebe" value="proprio" onchange="toggleBenef()"> O próprio trabalhador</label>
+                <label class="inline-flex items-center gap-2">
+                  <input type="radio" name="quem-recebe" value="outra" onchange="toggleBenef()"> Outra pessoa</label>
+              </div>
+              <div id="bloco-benef" class="hidden grid grid-cols-2 gap-3">
+                <label class="text-sm">Nome do beneficiário *
+                  <input id="be-nome" type="text" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg"></label>
+                <label class="text-sm">CPF do beneficiário *
+                  <input id="be-cpf" type="text" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg"></label>
+                <label class="text-sm">Telefone
+                  <input id="be-tel" type="text" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg"></label>
+                <label class="text-sm">Grau de parentesco *
+                  <select id="be-grau" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
+                    <option value="conjuge">Cônjuge</option><option value="pai_mae">Pai / Mãe</option>
+                    <option value="filhoa">Filho(a)</option><option value="irmao">Irmão(ã)</option>
+                    <option value="terceiro">Terceiro</option></select></label>
+                <label class="text-sm">Nome da mãe do beneficiário *
+                  <input id="be-nome-mae" type="text" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg"></label>
+                <label class="text-sm">Nascimento *
+                  <input id="be-nasc" type="date" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg"></label>
+                <label class="text-sm">CEP
+                  <input id="be-cep" type="text" onblur="buscarCep()" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg"></label>
+                <label class="text-sm">Endereço
+                  <input id="be-log" type="text" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg bg-slate-50"></label>
+                <label class="text-sm">Número
+                  <input id="be-num" type="text" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg"></label>
+                <label class="text-sm">Bairro
+                  <input id="be-bairro" type="text" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg bg-slate-50"></label>
+                <label class="text-sm">Cidade
+                  <input id="be-cidade" type="text" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg bg-slate-50"></label>
+                <label class="text-sm">UF
+                  <input id="be-uf" type="text" maxlength="2" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg bg-slate-50"></label>
+              </div>
+            </section>
+
+            <!-- Dados bancários (revelado conforme o tipo) -->
+            <section id="sec-banco" class="bg-white rounded-xl border border-slate-200 p-5 hidden">
+              <h2 class="font-semibold text-slate-700 mb-1">Dados bancários</h2>
+              <p id="banco-dono" class="text-xs text-slate-500 mb-3"></p>
+              <div class="grid grid-cols-2 gap-3">
+                <label class="text-sm">Código do banco
+                  <input id="bk-banco" type="text" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg"></label>
+                <label class="text-sm">Agência
+                  <input id="bk-agencia" type="text" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg"></label>
+                <label class="text-sm">Conta
+                  <input id="bk-conta" type="text" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg"></label>
+                <label class="text-sm">Dígito
+                  <input id="bk-digito" type="text" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg"></label>
+                <label class="text-sm">Tipo de conta
+                  <select id="bk-tipo" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
+                    <option value="corrente">Corrente</option><option value="poupanca">Poupança</option></select></label>
+                <label class="text-sm">Chave PIX
+                  <input id="bk-pix" type="text" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg"></label>
+              </div>
+            </section>
+
+            <!-- Documentos (revelado conforme o tipo) -->
+            <section id="sec-docs" class="bg-white rounded-xl border border-slate-200 p-5 hidden">
+              <h2 class="font-semibold text-slate-700 mb-3">Documentos obrigatórios</h2>
+              <div id="lista-docs" class="space-y-3"></div>
+            </section>
+
+            <!-- Ação -->
+            <div class="flex items-center gap-3">
+              <button type="button" id="btn-salvar" onclick="salvar()"
+                      class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium">
+                Salvar benefício
+              </button>
+              <a href="/app/processos.html" class="px-5 py-2.5 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50">Cancelar</a>
+              <span id="salvar-status" class="text-sm"></span>
+            </div>
+          </form>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script src="/app/js/api.js"></script>
+  <script src="/app/js/empresa-atual.js"></script>
+  <script src="/app/js/sidebar.js"></script>
+  <script>renderizarSidebar("processos");</script>
+  <script src="/app/js/beneficio-novo.js"></script>
+</body>
+</html>

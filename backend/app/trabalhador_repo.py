@@ -214,6 +214,54 @@ def buscar_por_id(id: int) -> dict[str, Any] | None:
             cur.execute(sql, (id,))
             return cur.fetchone()
 
+def buscar_por_cpf(cpf: str) -> dict[str, Any] | None:
+    """
+    Acha o TITULAR por CPF (com ou sem pontuação) — ponto de entrada da abertura
+    de benefício. Retorna dados + os complementares (genero/nome_mae/rg, que a
+    tela reaproveita se já vieram de um benefício anterior) + empresa/sindicato
+    resolvidos.
+
+    Consulta a tabela direto (não a view) porque os complementares são colunas
+    novas (migração 25) que a v_trabalhador não expõe. DISTINCT ON cpf + ordem
+    por titularidade='titular' primeiro: se houver dupe de CPF no legado, pega o
+    titular.
+    """
+    d = _so_digitos(cpf)
+    if len(d) != 11:
+        return None
+    sql = """
+        SELECT DISTINCT ON (t.cpf)
+               t.id, t.cpf, t.nome_completo, t.situacao,
+               t.data_nascimento, t.data_admissao,
+               t.genero, t.nome_mae, t.rg,
+               t.telefone, t.cep, t.logradouro, t.numero, t.complemento,
+               t.bairro, t.cidade, t.uf,
+               t.id_empresa_atual,   e.razao_social AS empresa, e.cnpj AS empresa_cnpj,
+               t.id_sindicato_atual, s.razao_social AS sindicato
+          FROM bss.trabalhador t
+          LEFT JOIN bss.empresa   e ON e.id = t.id_empresa_atual
+          LEFT JOIN bss.sindicato s ON s.id = t.id_sindicato_atual
+         WHERE t.cpf = %s
+         ORDER BY t.cpf, (t.titularidade = 'titular') DESC, t.id
+    """
+    with get_pg_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, (d,))
+            return cur.fetchone()
+
+
+def motivo_bloqueio(id_trabalhador: int) -> str:
+    """
+    Chama a função do banco que diz se o trabalhador pode abrir benefício.
+    Retorna '' se pode, ou o motivo do bloqueio (inadimplência/irregularidade/
+    lacuna de contribuição). Ver bss.motivo_bloqueio_processo (migração 24).
+    """
+    with get_pg_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT bss.motivo_bloqueio_processo(%s) AS motivo", (id_trabalhador,))
+            return cur.fetchone()["motivo"] or ""
+
+
 def buscar_dependentes(cpf_titular: str) -> list[dict[str, Any]]:
     """Lista dependentes de um titular (por cpf_titular)."""
     if not cpf_titular:

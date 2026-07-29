@@ -194,6 +194,34 @@ def exportar(
     )
 
 
+@router.get("/por-cpf/{cpf}")
+def buscar_por_cpf(
+    cpf: str,
+    usuario: Annotated[UsuarioInfo, Depends(usuario_logado)],
+):
+    """
+    Ponto de entrada da abertura de benefício: acha o trabalhador pelo CPF,
+    valida se pode abrir benefício (cobertura) e devolve os dados pra o form.
+
+    RLS: o perfil 'empresa' só encontra CPF das SUAS empresas — não pode usar a
+    busca pra descobrir trabalhador de terceiros. Responde 404 (não 403) pra
+    não confirmar que o CPF existe fora do escopo.
+    """
+    t = trabalhador_repo.buscar_por_cpf(cpf)
+    if not t:
+        raise HTTPException(404, "Trabalhador não encontrado")
+
+    if usuario.perfil == "empresa" and t["id_empresa_atual"] not in usuario.empresas:
+        raise HTTPException(404, "Trabalhador não encontrado")
+    if usuario.perfil == "sindicato" and t["id_sindicato_atual"] not in usuario.sindicatos:
+        raise HTTPException(404, "Trabalhador não encontrado")
+
+    motivo = trabalhador_repo.motivo_bloqueio(t["id"])
+    t["pode_abrir"] = (motivo == "")
+    t["motivo_bloqueio"] = motivo
+    return t
+
+
 @router.get("/dependentes/{cpf_titular}")
 def listar_dependentes(
     cpf_titular: str,
