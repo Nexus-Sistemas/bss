@@ -189,6 +189,81 @@ def _check_acesso_boleto(usuario: UsuarioInfo, row: dict[str, Any]) -> None:
             raise HTTPException(403, "Boleto fora do escopo")
 
 
+def _ids_lote(usuario, busca, status, mes_referencia, id_empresa,
+              id_sindicato, incluir_cancelados) -> list[int]:
+    """Resolve os ids do lote aplicando o escopo do perfil (igual à listagem)."""
+    ids_empresa = None
+    if usuario.perfil == "empresa":
+        if not usuario.empresas:
+            return []
+        if id_empresa is not None and id_empresa not in usuario.empresas:
+            raise HTTPException(403, "Empresa fora do escopo")
+        ids_empresa = usuario.empresas
+        incluir_cancelados = False   # empresa nunca vê cancelado
+    elif usuario.perfil == "sindicato":
+        if not usuario.sindicatos:
+            return []
+        if id_sindicato is None:
+            id_sindicato = usuario.sindicatos[0]
+        elif id_sindicato not in usuario.sindicatos:
+            raise HTTPException(403, "Sindicato fora do escopo")
+    return boleto_repo.ids_por_filtro(
+        busca=busca, status=status, mes_referencia=mes_referencia,
+        id_empresa=id_empresa, ids_empresa=ids_empresa, id_sindicato=id_sindicato,
+        incluir_cancelados=incluir_cancelados,
+    )
+
+
+@router.get("/lote/boletos-pdf")
+def download_lote_boletos(
+    usuario: Annotated[UsuarioInfo, Depends(usuario_logado)],
+    busca: str | None = None,
+    status: str | None = None,
+    mes_referencia: str | None = None,
+    id_empresa: int | None = None,
+    id_sindicato: int | None = None,
+    incluir_cancelados: bool = False,
+):
+    """Todos os boletos do filtro num PDF só (teto de 500 — ver boleto_repo)."""
+    ids = _ids_lote(usuario, busca, status, mes_referencia, id_empresa,
+                    id_sindicato, incluir_cancelados)
+    if not ids:
+        raise HTTPException(404, "Nenhum boleto para baixar neste filtro")
+    pdf = boleto_pdf.gerar_pdf_boletos_lote(ids)
+    if not pdf:
+        raise HTTPException(404, "Nenhum boleto gerado")
+    return Response(
+        content=pdf, media_type="application/pdf",
+        headers={"Content-Disposition":
+                 f'attachment; filename="boletos_lote_{len(ids)}.pdf"'},
+    )
+
+
+@router.get("/lote/listas-pdf")
+def download_lote_listas(
+    usuario: Annotated[UsuarioInfo, Depends(usuario_logado)],
+    busca: str | None = None,
+    status: str | None = None,
+    mes_referencia: str | None = None,
+    id_empresa: int | None = None,
+    id_sindicato: int | None = None,
+    incluir_cancelados: bool = False,
+):
+    """Todas as listas de trabalhadores do filtro num PDF só."""
+    ids = _ids_lote(usuario, busca, status, mes_referencia, id_empresa,
+                    id_sindicato, incluir_cancelados)
+    if not ids:
+        raise HTTPException(404, "Nenhuma lista para baixar neste filtro")
+    pdf = boleto_pdf.gerar_pdf_listas_lote(ids)
+    if not pdf:
+        raise HTTPException(404, "Nenhuma lista gerada")
+    return Response(
+        content=pdf, media_type="application/pdf",
+        headers={"Content-Disposition":
+                 f'attachment; filename="listas_lote_{len(ids)}.pdf"'},
+    )
+
+
 @router.get("/{id_boleto}/pdf")
 def download_pdf_boleto(
     id_boleto: int,

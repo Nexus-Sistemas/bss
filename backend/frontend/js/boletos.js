@@ -103,6 +103,26 @@ function montarQuery() {
   return params.toString();
 }
 
+/* --------------------------- download em lote ---------------------------- */
+/*
+ * Baixa TODOS os boletos (ou listas) do filtro atual num PDF só. Reusa a
+ * querystring do filtro — o backend resolve os ids no escopo e junta tudo num
+ * arquivo. Abre em nova aba (o PDF pode ser grande).
+ */
+async function baixarLote(tipo) {  // 'boletos' | 'listas'
+  const params = new URLSearchParams();
+  const f = ler();
+  for (const [k, v] of Object.entries(f)) if (v !== "" && v != null) params.append(k, v);
+  comEmpresaAtual(params);
+  const rota = tipo === "listas" ? "listas-pdf" : "boletos-pdf";
+  try {
+    await apiAbrirPdf(`/boletos/lote/${rota}?${params}`);
+  } catch (e) {
+    alert(`Nada para baixar: ${e.message}`);
+  }
+}
+
+
 async function recarregar() { pagina = 1; await carregar(); }
 
 async function carregar() {

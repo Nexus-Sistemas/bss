@@ -25,7 +25,7 @@ from reportlab.lib.units import cm, mm
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 from reportlab.platypus import (
-    Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle,
+    Image, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle,
 )
 
 from .database import get_pg_connection
@@ -179,21 +179,8 @@ def _carregar_itens(id_boleto: int) -> list[dict[str, Any]]:
 # PDF da Lista de Trabalhadores
 # =============================================================================
 
-def gerar_pdf_lista(id_boleto: int) -> bytes | None:
-    """Lista de trabalhadores vinculados ao boleto."""
-    b = _carregar_boleto(id_boleto)
-    if not b:
-        return None
-    itens = _carregar_itens(id_boleto)
-
-    buf = io.BytesIO()
-    doc = SimpleDocTemplate(
-        buf, pagesize=A4,
-        leftMargin=2*cm, rightMargin=2*cm,
-        topMargin=2*cm, bottomMargin=2*cm,
-        title=f"Lista do Boleto {b['nosso_numero']}",
-        author="BSS - Benefício Social Sindical",
-    )
+def _elems_lista(b: dict[str, Any], itens: list[dict[str, Any]]) -> list[Any]:
+    """Flowables de UMA lista. Extraído pra servir ao PDF individual e ao lote."""
     styles = getSampleStyleSheet()
     titulo_st = ParagraphStyle("titulo", parent=styles["Heading1"],
                                textColor=COR_AZUL_BSS, fontSize=14,
@@ -249,6 +236,45 @@ def gerar_pdf_lista(id_boleto: int) -> bytes | None:
     if not itens:
         elems.append(Paragraph("<i>Sem trabalhadores/dependentes vinculados.</i>", item_st))
 
+    return elems
+
+
+def gerar_pdf_lista(id_boleto: int) -> bytes | None:
+    """Lista de trabalhadores vinculados ao boleto."""
+    b = _carregar_boleto(id_boleto)
+    if not b:
+        return None
+    itens = _carregar_itens(id_boleto)
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf, pagesize=A4,
+        leftMargin=2*cm, rightMargin=2*cm, topMargin=2*cm, bottomMargin=2*cm,
+        title=f"Lista do Boleto {b['nosso_numero']}",
+        author="BSS - Benefício Social Sindical",
+    )
+    doc.build(_elems_lista(b, itens))
+    return buf.getvalue()
+
+
+def gerar_pdf_listas_lote(ids: list[int]) -> bytes | None:
+    """Um PDF só com todas as listas dos ids, uma por página (PageBreak)."""
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf, pagesize=A4,
+        leftMargin=2*cm, rightMargin=2*cm, topMargin=2*cm, bottomMargin=2*cm,
+        title="Listas de Trabalhadores BSS (lote)",
+        author="BSS - Benefício Social Sindical",
+    )
+    elems: list[Any] = []
+    for id_boleto in ids:
+        b = _carregar_boleto(id_boleto)
+        if not b:
+            continue
+        if elems:
+            elems.append(PageBreak())
+        elems += _elems_lista(b, _carregar_itens(id_boleto))
+    if not elems:
+        return None
     doc.build(elems)
     return buf.getvalue()
 
@@ -505,26 +531,21 @@ def _desenhar_ficha_compensacao(c: canvas.Canvas, b: dict[str, Any], y_topo: flo
     c.drawRightString(x_end, y + 8, "Autenticação mecânica - FICHA DE COMPENSAÇÃO")
 
 
-def gerar_pdf_boleto(id_boleto: int) -> bytes | None:
-    """Gera o PDF visual do boleto (mockup Itaú 341-7)."""
-    b = _carregar_boleto(id_boleto)
-    if not b:
-        return None
-
-    buf = io.BytesIO()
-    c = canvas.Canvas(buf, pagesize=A4)
-    c.setTitle(f"Boleto {b['nosso_numero']}")
-    c.setAuthor("BSS - Benefício Social Sindical")
-
+def _desenhar_boleto_no_canvas(c: canvas.Canvas, b: dict[str, Any]) -> None:
+    """
+    Desenha UM boleto (2 páginas) no canvas recebido, terminando com showPage().
+    Extraído pra o mesmo desenho servir ao PDF individual e ao PDF em lote (um
+    canvas, N boletos, um arquivo só — sem lib de merge).
+    """
     largura, altura = A4
 
     # Página 1: cabeçalho + ficha de compensação
     y_topo = altura - 2*cm
     base = _desenhar_cabecalho_bss(c, b, y_topo)
     _desenhar_ficha_compensacao(c, b, base - 8)
+    c.showPage()
 
     # Página 2: cabeçalho repetido + nota de responsabilidade
-    c.showPage()
     y_topo = altura - 2*cm
     _desenhar_cabecalho_bss(c, b, y_topo)
     c.setFont("Helvetica-Bold", 11)
@@ -534,6 +555,40 @@ def gerar_pdf_boleto(id_boleto: int) -> bytes | None:
                         f"{EMAIL_INFORME} A RELAÇÃO DOS TRABALHADORES")
     c.drawCentredString(largura/2, altura/2 - 1*cm,
                         "AMPARADOS PARA A COMPETÊNCIA DO MÊS CONTRIBUÍDO.")
+    c.showPage()
 
+
+def gerar_pdf_boleto(id_boleto: int) -> bytes | None:
+    """Gera o PDF visual do boleto (mockup Itaú 341-7)."""
+    b = _carregar_boleto(id_boleto)
+    if not b:
+        return None
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    c.setTitle(f"Boleto {b['nosso_numero']}")
+    c.setAuthor("BSS - Benefício Social Sindical")
+    _desenhar_boleto_no_canvas(c, b)
+    c.save()
+    return buf.getvalue()
+
+
+def gerar_pdf_boletos_lote(ids: list[int]) -> bytes | None:
+    """
+    Um PDF só com todos os boletos dos ids (na ordem recebida). Retorna None se
+    nenhum id resolveu. Reusa o mesmo desenho do individual.
+    """
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    c.setTitle("Boletos BSS (lote)")
+    c.setAuthor("BSS - Benefício Social Sindical")
+    n = 0
+    for id_boleto in ids:
+        b = _carregar_boleto(id_boleto)
+        if not b:
+            continue
+        _desenhar_boleto_no_canvas(c, b)
+        n += 1
+    if n == 0:
+        return None
     c.save()
     return buf.getvalue()

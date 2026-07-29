@@ -15,6 +15,57 @@ ORDER_BY_OK = {
 }
 
 
+# Teto do download em lote: um PDF de milhares de boletos travaria o worker e o
+# navegador. 500 cobre com folga um mês de um grupo grande; acima disso, filtrar.
+LIMITE_LOTE = 500
+
+
+def ids_por_filtro(
+    busca: str | None = None,
+    status: str | None = None,
+    mes_referencia: str | None = None,
+    id_empresa: int | None = None,
+    ids_empresa: list[int] | None = None,
+    id_sindicato: int | None = None,
+    incluir_cancelados: bool = False,
+) -> list[int]:
+    """
+    IDs dos boletos que casam com o filtro (mesmo WHERE da listagem), pra o
+    download em lote. Sem paginação, mas com teto (LIMITE_LOTE). O ESCOPO
+    (ids_empresa/id_sindicato) é aplicado igual à listagem — o router passa o
+    escopo do perfil, então ninguém baixa boleto fora da sua cobertura.
+    """
+    where = ["v.id_empresa IS NOT NULL"]
+    params: dict[str, Any] = {}
+    if busca:
+        where.append("(v.empresa ILIKE %(s)s OR v.empresa_cnpj LIKE %(cnpj)s OR v.nosso_numero LIKE %(s)s)")
+        params["s"] = f"%{busca}%"
+        params["cnpj"] = busca + "%"
+    if status:
+        where.append("v.status = %(status)s")
+        params["status"] = status
+    elif not incluir_cancelados:
+        where.append("v.status <> 'cancelado'")
+    if mes_referencia:
+        where.append("v.mes_referencia = (%(mes)s || '-01')::date")
+        params["mes"] = mes_referencia
+    if id_empresa:
+        where.append("v.id_empresa = %(id_empresa)s")
+        params["id_empresa"] = id_empresa
+    if ids_empresa is not None:
+        where.append("v.id_empresa = ANY(%(ids_empresa)s)")
+        params["ids_empresa"] = list(ids_empresa)
+    if id_sindicato:
+        where.append("v.id_sindicato = %(id_sindicato)s")
+        params["id_sindicato"] = id_sindicato
+
+    sql = (f"SELECT v.id FROM bss.v_boleto v WHERE {' AND '.join(where)} "
+           f"ORDER BY v.empresa, v.mes_referencia LIMIT {LIMITE_LOTE}")
+    with get_pg_connection() as conn, conn.cursor() as cur:
+        cur.execute(sql, params)
+        return [r["id"] for r in cur.fetchall()]
+
+
 def listar(
     busca: str | None = None,
     status: str | None = None,

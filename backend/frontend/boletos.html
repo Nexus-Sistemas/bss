@@ -18,7 +18,18 @@
             <!-- Só aparece pro perfil 'empresa' com +1 CNPJ. Ver js/empresa-atual.js -->
             <div id="seletor-empresa" class="min-w-0"></div>
           </div>
-          <div class="flex items-center gap-3 text-sm">
+          <div class="flex items-center gap-2 text-sm">
+            <!-- Download em lote do FILTRO atual — evita baixar 1 a 1. -->
+            <button onclick="baixarLote('boletos')"
+                    class="px-3 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-white"
+                    title="Baixar todos os boletos do filtro atual num PDF só">
+              ⬇ Boletos (lote)
+            </button>
+            <button onclick="baixarLote('listas')"
+                    class="px-3 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-white"
+                    title="Baixar todas as listas de trabalhadores do filtro atual num PDF só">
+              ⬇ Listas (lote)
+            </button>
             <button id="btn-gerar"
                     onclick="abrirModalEmissao()"
                     class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium shadow-sm">
