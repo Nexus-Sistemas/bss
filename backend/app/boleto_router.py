@@ -128,8 +128,11 @@ class EmitirRequest(BaseModel):
 
 @router.post("/emissao/emitir")
 def emitir(
-    payload: Annotated[EmitirRequest | None, Body()],
     usuario: Annotated[UsuarioInfo, Depends(usuario_logado)],
+    # default=None + embed torna o CORPO OPCIONAL: o perfil empresa emite sem
+    # corpo nenhum (todas as suas empresas), e o interno manda {ids_empresa:[...]}.
+    # Sem o default, FastAPI exigia corpo e devolvia 422 pra empresa (body=null).
+    payload: Annotated[EmitirRequest | None, Body()] = None,
 ):
     """
     Gera boletos pro mês de amparo CORRENTE.
