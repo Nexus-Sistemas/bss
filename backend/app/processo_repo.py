@@ -305,6 +305,7 @@ def listar_documentos(id_processo: int, id_tipo_beneficio: int | None) -> list[d
                pd.avaliado_em,
                mr.codigo        AS motivo_rejeicao_codigo,
                mr.nome          AS motivo_rejeicao,
+               d.id             AS id_documento,
                d.nome_original,
                d.arquivo_url,
                d.mime_type,
@@ -342,6 +343,7 @@ def listar_documentos(id_processo: int, id_tipo_beneficio: int | None) -> list[d
         if r["id_processo_documento"] is not None:
             tipos[tid]["arquivos"].append({
                 "id": r["id_processo_documento"],
+                "id_documento": r["id_documento"],   # pra montar a URL de download
                 "status": r["status"],
                 "versao": r["versao"],
                 "observacao": r["observacao"],

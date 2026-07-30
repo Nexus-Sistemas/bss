@@ -237,10 +237,23 @@ const ESTADO_ARQ = {
   pendente:  ["Em análise", "bg-sky-100 text-sky-800"],
 };
 
+/* Abre o documento pelo endpoint autenticado (token + checagem de escopo). */
+async function abrirDocumento(ev, idDocumento) {
+  ev.preventDefault();
+  try {
+    await apiAbrirPdf(`/documentos/${idDocumento}/download`);
+  } catch (e) {
+    alert(`Não foi possível abrir o documento: ${e.message}`);
+  }
+}
+
 function renderArquivo(a) {
   const [txt, cls] = ESTADO_ARQ[a.status] || ["—", "bg-slate-100 text-slate-500"];
-  const nome = a.arquivo_url
-    ? `<a href="${a.arquivo_url}" target="_blank" class="text-indigo-700 hover:underline">${a.nome_original || "arquivo"}</a>`
+  // O download passa pelo endpoint AUTENTICADO (manda o token, checa escopo).
+  // Não linkar o arquivo_url cru (local://… / s3://…) — não é URL de navegador
+  // e o arquivo é dado pessoal (LGPD), não pode ser link público.
+  const nome = a.id_documento
+    ? `<a href="#" onclick="abrirDocumento(event, ${a.id_documento})" class="text-indigo-700 hover:underline">${a.nome_original || "arquivo"}</a>`
     : (a.nome_original || "arquivo");
   const rejeicao = (a.status === "rejeitado")
     ? `<div class="text-xs text-rose-700 mt-0.5">
