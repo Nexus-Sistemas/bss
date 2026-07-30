@@ -22,6 +22,7 @@ from . import storage, tarefa_repo
 router = APIRouter(prefix="/tarefas", tags=["tarefas"])
 
 _STATUS = {"aberta", "em_dev", "aguardando", "resolvida", "cancelada"}
+_TIPO = {"ajuste", "bug", "melhoria"}
 _MAX_ANEXO = 10 * 1024 * 1024   # 10 MB por print
 
 
@@ -32,9 +33,12 @@ def listar(
     modulo: str | None = None,
     prioridade: int | None = None,
     busca: str | None = None,
+    tipo: str | None = None,
+    responsavel: str | None = None,
     incluir_encerradas: bool = False,
 ):
-    return tarefa_repo.listar(status, modulo, prioridade, busca, incluir_encerradas)
+    return tarefa_repo.listar(status, modulo, prioridade, busca,
+                              tipo, responsavel, incluir_encerradas)
 
 
 @router.get("/modulos")
@@ -44,6 +48,8 @@ def modulos(usuario: Annotated[UsuarioInfo, Depends(exigir_interno)]):
 
 class TarefaIn(BaseModel):
     prioridade: int = 2
+    tipo: str | None = None
+    responsavel: str | None = None
     modulo: str | None = None
     assunto: str
     descricao: str | None = None
@@ -57,6 +63,8 @@ def _valida(dados: TarefaIn) -> None:
         raise HTTPException(400, "Status inválido")
     if dados.prioridade not in (1, 2, 3):
         raise HTTPException(400, "Prioridade deve ser 1, 2 ou 3")
+    if dados.tipo and dados.tipo not in _TIPO:
+        raise HTTPException(400, "Tipo inválido")
 
 
 @router.post("", status_code=201)
@@ -65,9 +73,10 @@ def criar(
     usuario: Annotated[UsuarioInfo, Depends(exigir_interno)],
 ):
     _valida(dados)
-    return tarefa_repo.criar(dados.prioridade, (dados.modulo or "").strip() or None,
-                             dados.assunto.strip(), dados.descricao, dados.status,
-                             usuario.id)
+    return tarefa_repo.criar(
+        dados.prioridade, dados.tipo, (dados.responsavel or "").strip() or None,
+        (dados.modulo or "").strip() or None, dados.assunto.strip(),
+        dados.descricao, dados.status, usuario.id)
 
 
 @router.put("/{id_tarefa}")
@@ -77,9 +86,11 @@ def atualizar(
     usuario: Annotated[UsuarioInfo, Depends(exigir_interno)],
 ):
     _valida(dados)
-    t = tarefa_repo.atualizar(id_tarefa, dados.prioridade,
-                              (dados.modulo or "").strip() or None,
-                              dados.assunto.strip(), dados.descricao, dados.status)
+    t = tarefa_repo.atualizar(
+        id_tarefa, dados.prioridade, dados.tipo,
+        (dados.responsavel or "").strip() or None,
+        (dados.modulo or "").strip() or None, dados.assunto.strip(),
+        dados.descricao, dados.status)
     if not t:
         raise HTTPException(404, "Tarefa não encontrada")
     return t

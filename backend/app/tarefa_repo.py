@@ -10,14 +10,16 @@ from .database import get_pg_connection
 
 
 _COLS = """
-    t.id, t.prioridade, t.modulo, t.assunto, t.descricao, t.status,
-    t.anexo_url, t.anexo_nome, t.criado_por_id, u.nome AS criado_por,
+    t.id, t.prioridade, t.tipo, t.responsavel, t.modulo, t.assunto,
+    t.descricao, t.status, t.anexo_url, t.anexo_nome,
+    t.criado_por_id, u.nome AS criado_por,
     t.criado_em, t.atualizado_em, t.resolvido_em
 """
 
 
 def listar(status: str | None = None, modulo: str | None = None,
            prioridade: int | None = None, busca: str | None = None,
+           tipo: str | None = None, responsavel: str | None = None,
            incluir_encerradas: bool = False) -> list[dict[str, Any]]:
     where = ["1=1"]
     params: dict[str, Any] = {}
@@ -33,6 +35,12 @@ def listar(status: str | None = None, modulo: str | None = None,
     if prioridade:
         where.append("t.prioridade = %(prio)s")
         params["prio"] = prioridade
+    if tipo:
+        where.append("t.tipo = %(tipo)s")
+        params["tipo"] = tipo
+    if responsavel:
+        where.append("t.responsavel = %(resp)s")
+        params["resp"] = responsavel
     if busca:
         where.append("(t.assunto ILIKE %(b)s OR t.descricao ILIKE %(b)s)")
         params["b"] = f"%{busca}%"
@@ -70,29 +78,32 @@ def buscar(id_tarefa: int) -> dict[str, Any] | None:
         return cur.fetchone()
 
 
-def criar(prioridade: int, modulo: str | None, assunto: str,
-          descricao: str | None, status: str, criado_por_id: int) -> dict:
+def criar(prioridade: int, tipo: str | None, responsavel: str | None,
+          modulo: str | None, assunto: str, descricao: str | None,
+          status: str, criado_por_id: int) -> dict:
     with get_pg_connection() as conn, conn.cursor() as cur:
         cur.execute(
             """
-            INSERT INTO bss.tarefa (prioridade, modulo, assunto, descricao, status, criado_por_id)
-            VALUES (%s, %s, %s, %s, %s, %s) RETURNING id
+            INSERT INTO bss.tarefa
+                (prioridade, tipo, responsavel, modulo, assunto, descricao, status, criado_por_id)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
             """,
-            (prioridade, modulo, assunto, descricao, status, criado_por_id),
+            (prioridade, tipo, responsavel, modulo, assunto, descricao, status, criado_por_id),
         )
         novo = cur.fetchone()["id"]
         conn.commit()
     return buscar(novo)
 
 
-def atualizar(id_tarefa: int, prioridade: int, modulo: str | None,
-              assunto: str, descricao: str | None, status: str) -> dict | None:
+def atualizar(id_tarefa: int, prioridade: int, tipo: str | None,
+              responsavel: str | None, modulo: str | None, assunto: str,
+              descricao: str | None, status: str) -> dict | None:
     with get_pg_connection() as conn, conn.cursor() as cur:
         cur.execute(
             """
             UPDATE bss.tarefa SET
-                prioridade = %s, modulo = %s, assunto = %s, descricao = %s,
-                status = %s, atualizado_em = NOW(),
+                prioridade = %s, tipo = %s, responsavel = %s, modulo = %s,
+                assunto = %s, descricao = %s, status = %s, atualizado_em = NOW(),
                 -- carimba resolvido_em ao virar 'resolvida'; limpa se reabrir
                 resolvido_em = CASE WHEN %s = 'resolvida' AND resolvido_em IS NULL
                                     THEN NOW()
@@ -100,7 +111,8 @@ def atualizar(id_tarefa: int, prioridade: int, modulo: str | None,
                                     ELSE resolvido_em END
              WHERE id = %s
             """,
-            (prioridade, modulo, assunto, descricao, status, status, status, id_tarefa),
+            (prioridade, tipo, responsavel, modulo, assunto, descricao, status,
+             status, status, id_tarefa),
         )
         conn.commit()
     return buscar(id_tarefa)
