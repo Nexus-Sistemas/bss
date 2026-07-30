@@ -72,6 +72,13 @@ function render(c) {
                                : pill("cadastro interno", "bg-slate-100 text-slate-600"),
   ].join(" ");
 
+  // Botão "Acessar como": só faz sentido pra usuário externo do portal, ativo
+  // e com login de verdade. O backend valida de novo (não confia no front).
+  const btnAC = document.getElementById("btn-acessar-como");
+  const podeAcessar = c.ativo && !semEmail &&
+    !["admin", "interno", "analista"].includes(c.perfil);
+  btnAC.classList.toggle("hidden", !podeAcessar);
+
   // Contato sem e-mail = ficha de telefone/endereço, não usuário do portal
   if (semEmail) {
     const av = document.getElementById("aviso-sem-email");
@@ -207,6 +214,20 @@ function tabelaSolicitacoes(linhas) {
         <th class="px-3 py-2 text-left">Avaliado por</th>
         <th class="px-3 py-2 text-left">Motivo</th>
       </tr></thead><tbody>${corpo}</tbody></table></div>`;
+}
+
+async function acessarComoContato() {
+  if (!_contato) return;
+  const ok = confirm(
+    `Você vai acessar o portal COMO "${_contato.nome}" (${_contato.email}).\n\n` +
+    `Tudo o que fizer fica registrado em seu nome na auditoria. Continuar?`
+  );
+  if (!ok) return;
+  try {
+    await acessarComo(_contato.id);   // troca o token e redireciona
+  } catch (e) {
+    alert("Não foi possível acessar como este contato: " + e.message);
+  }
 }
 
 carregar();

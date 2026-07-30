@@ -4,6 +4,8 @@
 
 const API_BASE = "";
 const TOKEN_KEY = "bss_token";
+// Guarda o token do interno enquanto ele está "acessando como" um cliente.
+const TOKEN_ORIG_KEY = "bss_token_original";
 
 
 async function apiLogin(email, password) {
@@ -168,6 +170,7 @@ async function apiAbrirPdfPost(path, body) {
 
 function logout() {
   localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(TOKEN_ORIG_KEY);
   window.location.href = "/app/login.html";
 }
 
@@ -184,10 +187,70 @@ function usuarioAtual() {
       perfil:     payload.perfil,
       empresas:   payload.empresas   || [],   // [int] — IDs das empresas (perfil=empresa)
       sindicatos: payload.sindicatos || [],   // [int] — IDs dos sindicatos (perfil=sindicato)
+      // "Acessar como": preenchido quando um interno está operando como cliente.
+      imp_por:       payload.imp_por || null,
+      imp_por_nome:  payload.imp_por_nome || null,
+      imp_por_email: payload.imp_por_email || null,
     };
   } catch {
     return null;
   }
+}
+
+
+/* === Acessar como (impersonação) ======================================== */
+
+// Abre uma sessão como o cliente `idAlvo`. Guarda o token do interno pra poder
+// voltar, troca o token corrente e manda pro portal da empresa.
+async function acessarComo(idAlvo) {
+  const dados = await apiFetch(`/auth/acessar-como/${idAlvo}`, { method: "POST" });
+  // Só guarda o "original" se ainda não estiver impersonando (evita empilhar).
+  if (!localStorage.getItem(TOKEN_ORIG_KEY)) {
+    localStorage.setItem(TOKEN_ORIG_KEY, localStorage.getItem(TOKEN_KEY));
+  }
+  localStorage.setItem(TOKEN_KEY, dados.access_token);
+  window.location.href = "/app/dashboard-empresa.html";
+}
+
+// Volta à conta do interno.
+function voltarAcessoComo() {
+  const orig = localStorage.getItem(TOKEN_ORIG_KEY);
+  if (orig) {
+    localStorage.setItem(TOKEN_KEY, orig);
+    localStorage.removeItem(TOKEN_ORIG_KEY);
+    window.location.href = "/app/contatos.html";
+  } else {
+    logout();
+  }
+}
+
+// Banner fixo no rodapé enquanto o interno está "acessando como". api.js é
+// carregado em todas as telas, então isto cobre o portal inteiro sem editar
+// página por página.
+function _montarBannerAcessoComo() {
+  const u = usuarioAtual();
+  if (!u || !u.imp_por) return;
+  if (document.getElementById("banner-acesso-como")) return;
+  const barra = document.createElement("div");
+  barra.id = "banner-acesso-como";
+  barra.style.cssText =
+    "position:fixed;left:0;right:0;bottom:0;z-index:9999;background:#b45309;color:#fff;" +
+    "font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:13px;" +
+    "padding:8px 16px;display:flex;align-items:center;justify-content:center;gap:12px;" +
+    "box-shadow:0 -2px 8px rgba(0,0,0,.15)";
+  barra.innerHTML =
+    `<span>⚠️ Você está acessando como <b>${u.nome || ""}</b> ` +
+    `(${u.email || ""}) — suas ações ficam registradas em seu nome (${u.imp_por_nome || ""}).</span>` +
+    `<button onclick="voltarAcessoComo()" style="background:#fff;color:#b45309;border:0;` +
+    `padding:5px 12px;border-radius:6px;font-weight:600;cursor:pointer">Voltar à minha conta</button>`;
+  document.body.appendChild(barra);
+  document.body.style.paddingBottom = "44px";
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", _montarBannerAcessoComo);
+} else {
+  _montarBannerAcessoComo();
 }
 
 

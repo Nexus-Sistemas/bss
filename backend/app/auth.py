@@ -66,6 +66,13 @@ class UsuarioInfo(BaseModel):
     # Vínculos N:N (vazios se perfil interno/admin/analista/contabilidade):
     empresas: list[int] = []          # IDs de bss.empresa que o usuário opera (perfil=empresa)
     sindicatos: list[int] = []        # IDs de bss.sindicato que o usuário vê (perfil=sindicato)
+    # "Acessar como": quando um interno está operando pelo portal de um cliente,
+    # o token carrega a identidade do CLIENTE (id/perfil acima), mas guarda aqui
+    # QUEM de verdade está por trás. É o que permite auditar a transação no nome
+    # do interno, mesmo ela saindo pela conta do cliente.
+    imp_por: int | None = None
+    imp_por_nome: str | None = None
+    imp_por_email: str | None = None
 
 
 # === Helpers de vínculo =====================================================
@@ -164,6 +171,9 @@ def usuario_logado(token: Annotated[str, Depends(oauth2_scheme)]) -> UsuarioInfo
         perfil=p.get("perfil", ""),
         empresas=p.get("empresas") or [],
         sindicatos=p.get("sindicatos") or [],
+        imp_por=p.get("imp_por"),
+        imp_por_nome=p.get("imp_por_nome"),
+        imp_por_email=p.get("imp_por_email"),
     )
 
 
@@ -249,3 +259,62 @@ def redefinir_senha(dados: RedefinirSenhaIn):
 
     usuario_repo.definir_senha(id_usuario, hash_senha(dados.nova_senha))
     return {"ok": True}
+
+
+# === Acessar como (impersonação auditada) ==================================
+
+@router.post("/acessar-como/{id_alvo}", response_model=TokenResponse)
+def acessar_como(
+    id_alvo: int,
+    interno: Annotated[UsuarioInfo, Depends(exigir_interno)],
+):
+    """
+    Emite um token que faz o interno operar o portal COMO o cliente `id_alvo`.
+
+    Só a equipe interna aciona (exigir_interno). O alvo tem que ser um usuário
+    EXTERNO (empresa/sindicato/contabilidade), ativo e com login de verdade —
+    não dá pra "acessar como" outro interno nem como ficha sem e-mail.
+
+    O token resultante carrega a identidade do CLIENTE (pra ver e fazer
+    exatamente o que ele faria) MAIS as claims imp_por*, que amarram tudo ao
+    interno. O início fica auditado em bss.acesso_como; as ações seguintes são
+    auditadas pelo middleware.
+    """
+    from . import acesso_como
+
+    with get_pg_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, email, nome, perfil, ativo FROM bss_users WHERE id = %s",
+                (id_alvo,),
+            )
+            alvo = cur.fetchone()
+
+        if not alvo:
+            raise HTTPException(404, "Usuário não encontrado")
+        if alvo["perfil"] in PERFIS_INTERNOS:
+            raise HTTPException(400, "Não é possível acessar como outro usuário interno")
+        if not alvo["ativo"]:
+            raise HTTPException(400, "Este usuário está inativo")
+        if (alvo["email"] or "").endswith("@contato.invalid"):
+            raise HTTPException(400, "Este contato não tem login no portal")
+
+        empresas, sindicatos = _carregar_vinculos(conn, alvo["id"], alvo["perfil"])
+
+    acesso_como.registrar(
+        "inicio", interno.id, interno.nome, interno.email,
+        alvo["id"], alvo["nome"], alvo["email"],
+    )
+
+    token = criar_token({
+        "sub":           str(alvo["id"]),
+        "email":         alvo["email"],
+        "nome":          alvo["nome"],
+        "perfil":        alvo["perfil"],
+        "empresas":      empresas,
+        "sindicatos":    sindicatos,
+        "imp_por":       interno.id,
+        "imp_por_nome":  interno.nome,
+        "imp_por_email": interno.email,
+    })
+    return TokenResponse(access_token=token)

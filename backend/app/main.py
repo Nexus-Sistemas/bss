@@ -56,6 +56,36 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+# Auditoria do "Acessar como": toda ação MUTANTE feita durante uma sessão de
+# impersonação é registrada com o interno responsável. Roda antes do endpoint,
+# nunca bloqueia a request (o auth de verdade é dos routers) e engole erro —
+# auditoria não pode derrubar a operação.
+_METODOS_MUTANTES = {"POST", "PUT", "PATCH", "DELETE"}
+
+
+@app.middleware("http")
+async def auditar_acesso_como(request, call_next):
+    if request.method in _METODOS_MUTANTES:
+        auth = request.headers.get("authorization", "")
+        if auth.lower().startswith("bearer "):
+            try:
+                from .auth import decodificar_token
+                from . import acesso_como
+                p = decodificar_token(auth.split(" ", 1)[1])
+                if p.get("imp_por"):
+                    # Ignora a própria abertura da sessão (o endpoint já loga
+                    # 'inicio', e ali o token ainda é o do interno, sem imp_por).
+                    acesso_como.registrar(
+                        "acao",
+                        int(p["imp_por"]), p.get("imp_por_nome"), p.get("imp_por_email"),
+                        int(p["sub"]), p.get("nome"), p.get("email"),
+                        metodo=request.method, caminho=request.url.path,
+                    )
+            except Exception:
+                pass  # token inválido/expirado: o router rejeita; aqui só audita
+    return await call_next(request)
+
 app.include_router(auth_router)
 app.include_router(trabalhador_router)
 app.include_router(empresa_router)
