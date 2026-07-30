@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BSS — Redefinir senha</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }</style>
+</head>
+<body class="bg-slate-50 min-h-screen flex items-center justify-center">
+
+  <main class="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 m-4">
+    <div class="text-center mb-8">
+      <img src="/app/img/bss_logo_grande.jpg" alt="Benefício Social Sindical"
+           class="mx-auto mb-4 max-w-[200px] w-full h-auto" />
+      <h1 class="text-lg font-semibold text-gray-800">Criar nova senha</h1>
+    </div>
+
+    <form id="form" class="space-y-4">
+      <div>
+        <label for="senha" class="block mb-1 text-sm font-medium text-gray-700">Nova senha</label>
+        <div class="relative">
+          <input type="password" id="senha" required minlength="6" placeholder="••••••"
+                 class="bg-white border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block w-full p-2.5 pr-16" />
+          <button type="button" onclick="toggleSenha()" id="btn-ver"
+                  class="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-500 hover:text-gray-800">Ver</button>
+        </div>
+        <p class="text-xs text-gray-400 mt-1">Mínimo 6 caracteres.</p>
+      </div>
+      <div>
+        <label for="senha2" class="block mb-1 text-sm font-medium text-gray-700">Confirmar senha</label>
+        <input type="password" id="senha2" required minlength="6" placeholder="••••••"
+               class="bg-white border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block w-full p-2.5" />
+      </div>
+
+      <div id="msg" class="hidden text-sm rounded-lg px-3 py-2"></div>
+
+      <button type="submit" id="btn"
+              class="w-full text-white bg-indigo-600 hover:bg-indigo-700 focus:ring-4 focus:ring-indigo-300 font-medium rounded-lg text-sm px-5 py-2.5 disabled:opacity-50">
+        Salvar nova senha
+      </button>
+    </form>
+
+    <p class="text-center mt-4">
+      <a href="/app/login.html" class="text-sm text-gray-500 hover:text-gray-800">Voltar ao login</a>
+    </p>
+  </main>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("token") || "";
+    const form = document.getElementById("form");
+    const btn = document.getElementById("btn");
+    const msg = document.getElementById("msg");
+
+    function mostra(texto, ok) {
+      msg.textContent = texto;
+      msg.className = "text-sm rounded-lg px-3 py-2 " + (ok
+        ? "text-green-700 bg-green-50 border border-green-200"
+        : "text-red-700 bg-red-50 border border-red-200");
+      msg.classList.remove("hidden");
+    }
+
+    function toggleSenha() {
+      const c = document.getElementById("senha");
+      const b = document.getElementById("btn-ver");
+      const mostrar = c.type === "password";
+      c.type = mostrar ? "text" : "password";
+      b.textContent = mostrar ? "Ocultar" : "Ver";
+    }
+
+    if (!token) {
+      form.classList.add("hidden");
+      mostra("Link inválido. Solicite uma nova redefinição na tela de login.", false);
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const s1 = document.getElementById("senha").value;
+      const s2 = document.getElementById("senha2").value;
+      if (s1 !== s2) { mostra("As senhas não conferem.", false); return; }
+      if (s1.length < 6) { mostra("A senha deve ter ao menos 6 caracteres.", false); return; }
+
+      btn.disabled = true;
+      btn.textContent = "Salvando...";
+      try {
+        const r = await fetch("/auth/redefinir-senha", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token, nova_senha: s1 }),
+        });
+        if (!r.ok) {
+          const d = await r.json().catch(() => ({}));
+          throw new Error(d.detail || "Não foi possível redefinir a senha.");
+        }
+        form.classList.add("hidden");
+        mostra("Senha alterada com sucesso! Redirecionando para o login…", true);
+        setTimeout(() => { window.location.href = "/app/login.html"; }, 2000);
+      } catch (e) {
+        mostra(e.message, false);
+        btn.disabled = false;
+        btn.textContent = "Salvar nova senha";
+      }
+    });
+  </script>
+</body>
+</html>

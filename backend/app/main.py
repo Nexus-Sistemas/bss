@@ -36,6 +36,7 @@ from .pagamento_router import router as pagamento_router
 from .tipo_beneficio_router import router as tipo_beneficio_router
 from .documento_router import router as documento_router
 from .tarefa_router import router as tarefa_router
+from .usuario_router import router as usuario_router
 from .database import get_pg_connection
 
 
@@ -69,6 +70,7 @@ app.include_router(pagamento_router)
 app.include_router(tipo_beneficio_router)
 app.include_router(documento_router)
 app.include_router(tarefa_router)
+app.include_router(usuario_router)
 # PÚBLICO — sem autenticação, por definição (porta de entrada de quem não tem
 # conta). Ver avisos de segurança no topo de autocadastro_router.py.
 app.include_router(autocadastro_router)

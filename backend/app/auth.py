@@ -194,3 +194,58 @@ def exigir_interno(
 @router.get("/me", response_model=UsuarioInfo)
 def me(usuario: Annotated[UsuarioInfo, Depends(usuario_logado)]):
     return usuario
+
+
+# === Esqueci / redefinir senha (self-service) ==============================
+
+class EsqueciSenhaIn(BaseModel):
+    email: str
+
+
+class RedefinirSenhaIn(BaseModel):
+    token: str
+    nova_senha: str
+
+
+_SENHA_MIN = 6
+
+
+@router.post("/esqueci-senha")
+def esqueci_senha(dados: EsqueciSenhaIn):
+    """
+    Dispara o e-mail com o link de redefinição.
+
+    RESPOSTA NEUTRA de propósito: retorna sempre ok, exista ou não o e-mail.
+    Assim a tela não vira um oráculo de "quem tem conta aqui" (enumeração de
+    usuários). O envio roda inline — se o SMTP estiver fora, o e-mail não sai,
+    mas a resposta é a mesma.
+    """
+    # Import tardio evita ciclo (usuario_repo → nada de auth, mas fica seguro).
+    from . import usuario_repo, notificacao
+
+    email = (dados.email or "").strip().lower()
+    if email:
+        user = usuario_repo.buscar_usuario_ativo_por_email(email)
+        if user:
+            token = usuario_repo.criar_token_reset(user["id"])
+            link = (f"{settings.APP_BASE_URL.rstrip('/')}"
+                    f"/app/redefinir-senha.html?token={token}")
+            notificacao.enviar_reset_senha(user["email"], user["nome"], link)
+
+    return {"ok": True,
+            "mensagem": "Se o e-mail estiver cadastrado, enviamos um link de redefinição."}
+
+
+@router.post("/redefinir-senha")
+def redefinir_senha(dados: RedefinirSenhaIn):
+    from . import usuario_repo
+
+    if len((dados.nova_senha or "")) < _SENHA_MIN:
+        raise HTTPException(400, f"A senha deve ter ao menos {_SENHA_MIN} caracteres")
+
+    id_usuario = usuario_repo.consumir_token_reset((dados.token or "").strip())
+    if not id_usuario:
+        raise HTTPException(400, "Link inválido ou expirado. Solicite um novo.")
+
+    usuario_repo.definir_senha(id_usuario, hash_senha(dados.nova_senha))
+    return {"ok": True}

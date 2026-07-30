@@ -115,6 +115,81 @@ def _escape_html(s: str) -> str:
     return (s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
 
 
+def enviar_reset_senha(destino: str, nome: str, link: str) -> bool:
+    """
+    Manda o link de redefinição de senha PRA PESSOA (To direto, não Bcc — é um
+    e-mail transacional individual). Retorna True/False; nunca levanta.
+    """
+    if not _habilitado() or not destino:
+        return False
+
+    assunto = "Redefinição de senha — BSS"
+    texto = f"""Olá {nome or ''},
+
+Recebemos um pedido para redefinir a senha da sua conta no BSS.
+
+Para criar uma nova senha, acesse o link abaixo (válido por 1 hora):
+{link}
+
+Se não foi você que pediu, ignore este e-mail — sua senha continua a mesma.
+
+Mensagem automática — não responda a este e-mail.
+"""
+    html = f"""<!DOCTYPE html>
+<html lang="pt-BR"><body style="margin:0;padding:24px;background:#f8fafc;
+      font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#334155">
+  <div style="max-width:520px;margin:0 auto;background:#fff;border:1px solid #e2e8f0;
+              border-radius:12px;padding:28px">
+    <h2 style="margin:0 0 4px;font-size:17px;color:#1e293b">Redefinição de senha</h2>
+    <p style="margin:0 0 20px;font-size:14px;color:#64748b">
+      Olá {_escape_html(nome or '')}, recebemos um pedido para redefinir a senha da sua conta.</p>
+    <p style="margin:0 0 20px;font-size:14px">
+      Clique no botão abaixo para criar uma nova senha. O link vale por 1 hora.</p>
+    <p style="margin:0 0 24px">
+      <a href="{link}" style="display:inline-block;background:#4f46e5;color:#fff;
+         text-decoration:none;padding:11px 22px;border-radius:8px;font-size:14px;
+         font-weight:500">Criar nova senha</a>
+    </p>
+    <p style="margin:24px 0 0;font-size:12px;color:#94a3b8;border-top:1px solid #f1f5f9;
+              padding-top:16px">
+      Se não foi você que pediu, ignore este e-mail — sua senha continua a mesma.<br>
+      Mensagem automática — não responda.
+    </p>
+  </div>
+</body></html>"""
+
+    try:
+        msg = EmailMessage()
+        msg["Subject"] = assunto
+        msg["From"] = f"{settings.SMTP_FROM_NOME} <{_remetente()}>"
+        msg["To"] = destino
+        msg.set_content(texto)
+        msg.add_alternative(html, subtype="html")
+
+        ctx = ssl.create_default_context()
+        if not settings.SMTP_VERIFICAR_CERT:
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+            log.warning("SMTP com verificação de certificado DESLIGADA")
+
+        if settings.SMTP_SSL:
+            with smtplib.SMTP_SSL(settings.SMTP_HOST, settings.SMTP_PORT,
+                                  context=ctx, timeout=20) as s:
+                s.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+                s.send_message(msg)
+        else:
+            with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=20) as s:
+                if settings.SMTP_USE_TLS:
+                    s.starttls(context=ctx)
+                s.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+                s.send_message(msg)
+        log.info("e-mail de reset de senha enviado para %s", destino)
+        return True
+    except Exception as e:
+        log.warning("falha ao enviar reset de senha: %s", e)
+        return False
+
+
 def _destinatarios_da_empresa(id_empresa: int, excluir_id_usuario: int | None = None
                               ) -> list[dict[str, Any]]:
     """
