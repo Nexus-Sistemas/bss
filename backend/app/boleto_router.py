@@ -35,6 +35,7 @@ def listar(
     # ESCOPO ≠ FILTRO — ver o comentário no processo_router. `ids_empresa` é o
     # que o usuário pode ver; `id_empresa` é o que ele escolheu ver.
     ids_empresa: list[int] | None = None
+    ids_sindicato: list[int] | None = None
     if usuario.perfil == "empresa":
         if not usuario.empresas:
             return {"linhas": [], "total": 0, "pagina": 1,
@@ -48,14 +49,15 @@ def listar(
         if not usuario.sindicatos:
             return {"linhas": [], "total": 0, "pagina": 1,
                     "por_pagina": por_pagina, "paginas": 0}
-        if id_sindicato is None:
-            id_sindicato = usuario.sindicatos[0]
-        elif id_sindicato not in usuario.sindicatos:
+        # Escopo = todos os sindicatos do usuário; id_sindicato (seletor) estreita.
+        if id_sindicato is not None and id_sindicato not in usuario.sindicatos:
             raise HTTPException(403, "Sindicato fora do escopo")
+        ids_sindicato = usuario.sindicatos
 
     return boleto_repo.listar(
         busca=busca, status=status, mes_referencia=mes_referencia,
-        id_empresa=id_empresa, ids_empresa=ids_empresa, id_sindicato=id_sindicato,
+        id_empresa=id_empresa, ids_empresa=ids_empresa,
+        id_sindicato=id_sindicato, ids_sindicato=ids_sindicato,
         incluir_cancelados=incluir_cancelados,
         pagina=pagina, por_pagina=por_pagina, ordem=ordem, desc=desc,
     )
@@ -193,6 +195,7 @@ def _ids_lote(usuario, busca, status, mes_referencia, id_empresa,
               id_sindicato, incluir_cancelados) -> list[int]:
     """Resolve os ids do lote aplicando o escopo do perfil (igual à listagem)."""
     ids_empresa = None
+    ids_sindicato = None
     if usuario.perfil == "empresa":
         if not usuario.empresas:
             return []
@@ -203,13 +206,13 @@ def _ids_lote(usuario, busca, status, mes_referencia, id_empresa,
     elif usuario.perfil == "sindicato":
         if not usuario.sindicatos:
             return []
-        if id_sindicato is None:
-            id_sindicato = usuario.sindicatos[0]
-        elif id_sindicato not in usuario.sindicatos:
+        if id_sindicato is not None and id_sindicato not in usuario.sindicatos:
             raise HTTPException(403, "Sindicato fora do escopo")
+        ids_sindicato = usuario.sindicatos
     return boleto_repo.ids_por_filtro(
         busca=busca, status=status, mes_referencia=mes_referencia,
-        id_empresa=id_empresa, ids_empresa=ids_empresa, id_sindicato=id_sindicato,
+        id_empresa=id_empresa, ids_empresa=ids_empresa,
+        id_sindicato=id_sindicato, ids_sindicato=ids_sindicato,
         incluir_cancelados=incluir_cancelados,
     )
 

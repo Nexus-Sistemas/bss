@@ -24,18 +24,20 @@ def _escopo_por_perfil(
     usuario: UsuarioInfo,
     id_empresa: int | None,
     id_sindicato: int | None,
-) -> tuple[int | None, list[int] | None, int | None] | None:
+) -> tuple[int | None, list[int] | None, int | None, list[int] | None] | None:
     """
-    Aplica o escopo do perfil. Devolve (id_empresa, ids_empresa, id_sindicato),
-    ou None quando o usuário não tem vínculo nenhum (o chamador decide se isso
-    é lista vazia ou 403).
+    Aplica o escopo do perfil. Devolve
+    (id_empresa, ids_empresa, id_sindicato, ids_sindicato), ou None quando o
+    usuário não tem vínculo nenhum (o chamador decide se isso é lista vazia ou 403).
 
-    ESCOPO ≠ FILTRO:
-      - `ids_empresa` é o conjunto que o usuário PODE ver (vem do JWT);
-      - `id_empresa` é o que ele ESCOLHEU ver (vem da tela, opcional).
+    ESCOPO ≠ FILTRO — e vale IGUAL pras duas dimensões:
+      - `ids_empresa`/`ids_sindicato` = o conjunto que o usuário PODE ver (JWT);
+      - `id_empresa`/`id_sindicato`   = o que ele ESCOLHEU ver (tela, opcional).
 
-    Antes, sem filtro, o router usava `usuario.empresas[0]` como escopo — e um
-    gestor de 11 CNPJs via os trabalhadores de um só, escolhido pelo banco.
+    Antes o sindicato usava `usuario.sindicatos[0]` como escopo — um contato com
+    vários sindicatos via os trabalhadores de UM só, escolhido pelo banco. Agora
+    é simétrico com empresa: o escopo é o conjunto inteiro (ANY(array)), e o
+    seletor da tela restringe a um sindicato quando o usuário quer.
 
     Compartilhado entre listar() e exportar(): se a exportação tivesse a
     própria cópia dessa regra, uma hora as duas divergiriam e o .xlsx viraria
@@ -43,6 +45,7 @@ def _escopo_por_perfil(
     ninguém nunca vê a tela que mostrou demais.
     """
     ids_empresa: list[int] | None = None
+    ids_sindicato: list[int] | None = None
     if usuario.perfil == "empresa":
         if not usuario.empresas:
             return None
@@ -52,11 +55,10 @@ def _escopo_por_perfil(
     elif usuario.perfil == "sindicato":
         if not usuario.sindicatos:
             return None
-        if id_sindicato is None:
-            id_sindicato = usuario.sindicatos[0]
-        elif id_sindicato not in usuario.sindicatos:
+        if id_sindicato is not None and id_sindicato not in usuario.sindicatos:
             raise HTTPException(403, "Sindicato fora do escopo do usuário")
-    return id_empresa, ids_empresa, id_sindicato
+        ids_sindicato = usuario.sindicatos
+    return id_empresa, ids_empresa, id_sindicato, ids_sindicato
 
 
 @router.get("")
@@ -85,7 +87,7 @@ def listar(
     if escopo is None:
         return {"linhas": [], "total": 0, "pagina": 1,
                 "por_pagina": por_pagina, "paginas": 0}
-    id_empresa, ids_empresa, id_sindicato = escopo
+    id_empresa, ids_empresa, id_sindicato, ids_sindicato = escopo
 
     return trabalhador_repo.listar(
         busca=busca,
@@ -93,6 +95,7 @@ def listar(
         id_empresa=id_empresa,
         ids_empresa=ids_empresa,
         id_sindicato=id_sindicato,
+        ids_sindicato=ids_sindicato,
         uf=uf,
         empresa=empresa,
         cnpj=cnpj,
@@ -131,11 +134,12 @@ def exportar(
     escopo = _escopo_por_perfil(usuario, id_empresa, id_sindicato)
     if escopo is None:
         raise HTTPException(403, "Usuário sem vínculo — nada a exportar")
-    id_empresa, ids_empresa, id_sindicato = escopo
+    id_empresa, ids_empresa, id_sindicato, ids_sindicato = escopo
 
     linhas = trabalhador_repo.listar_tudo(
         busca=busca, situacao=situacao, id_empresa=id_empresa,
         ids_empresa=ids_empresa, id_sindicato=id_sindicato,
+        ids_sindicato=ids_sindicato,
         uf=uf, empresa=empresa, cnpj=cnpj, sindicato=sindicato,
         ordem=ordem, desc=desc,
     )

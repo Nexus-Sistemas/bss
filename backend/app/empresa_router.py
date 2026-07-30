@@ -11,6 +11,17 @@ from . import empresa_repo
 router = APIRouter(prefix="/empresas", tags=["empresas"])
 
 
+def _exigir_empresa_no_escopo(usuario: UsuarioInfo, id_empresa: int) -> None:
+    """RLS de detalhe: empresa vê as suas; sindicato vê as que têm trabalhador
+    ativo nos seus sindicatos; internos veem tudo."""
+    if usuario.perfil == "empresa":
+        if id_empresa not in usuario.empresas:
+            raise HTTPException(403, "Empresa fora do escopo")
+    elif usuario.perfil == "sindicato":
+        if not empresa_repo.empresa_no_escopo_sindicato(id_empresa, usuario.sindicatos):
+            raise HTTPException(403, "Empresa fora do escopo")
+
+
 @router.get("")
 def listar(
     usuario: Annotated[UsuarioInfo, Depends(usuario_logado)],
@@ -30,6 +41,7 @@ def listar(
     # empresa_repo.listar: era assim, e escondia 10 das 11 empresas do
     # usuário atrás de 105 páginas).
     ids: list[int] | None = None
+    ids_sindicato: list[int] | None = None
     if usuario.perfil == "empresa":
         if not usuario.empresas:
             # Sem vínculo não há o que mostrar. Devolve vazio coerente em vez
@@ -37,10 +49,16 @@ def listar(
             return {"linhas": [], "total": 0, "pagina": 1,
                     "por_pagina": por_pagina, "paginas": 0}
         ids = usuario.empresas
+    elif usuario.perfil == "sindicato":
+        # Sindicato só vê empresas com trabalhador ativo nos seus sindicatos.
+        if not usuario.sindicatos:
+            return {"linhas": [], "total": 0, "pagina": 1,
+                    "por_pagina": por_pagina, "paginas": 0}
+        ids_sindicato = usuario.sindicatos
 
     return empresa_repo.listar(
         busca=busca, status=status, adimplencia=adimplencia,
-        regularidade=regularidade, uf=uf, ids=ids,
+        regularidade=regularidade, uf=uf, ids=ids, ids_sindicato=ids_sindicato,
         pagina=pagina, por_pagina=por_pagina, ordem=ordem, desc=desc,
     )
 
@@ -51,8 +69,7 @@ def detalhe_completo(
     usuario: Annotated[UsuarioInfo, Depends(usuario_logado)],
 ):
     """Detalhe completo da empresa (endereço + caches + datas)."""
-    if usuario.perfil == "empresa" and id_empresa not in usuario.empresas:
-        raise HTTPException(403, "Empresa fora do escopo")
+    _exigir_empresa_no_escopo(usuario, id_empresa)
     row = empresa_repo.buscar_detalhe(id_empresa)
     if not row:
         raise HTTPException(404, "Empresa não encontrada")
@@ -65,8 +82,7 @@ def usuarios(
     usuario: Annotated[UsuarioInfo, Depends(usuario_logado)],
 ):
     """Usuários com acesso à empresa (aba de relacionamento)."""
-    if usuario.perfil == "empresa" and id_empresa not in usuario.empresas:
-        raise HTTPException(403, "Empresa fora do escopo")
+    _exigir_empresa_no_escopo(usuario, id_empresa)
     return empresa_repo.listar_usuarios(id_empresa)
 
 
@@ -78,6 +94,5 @@ def detalhe(
     row = empresa_repo.buscar_por_id(id_empresa)
     if not row:
         raise HTTPException(404, "Empresa não encontrada")
-    if usuario.perfil == "empresa" and id_empresa not in usuario.empresas:
-        raise HTTPException(403, "Empresa fora do escopo")
+    _exigir_empresa_no_escopo(usuario, id_empresa)
     return row

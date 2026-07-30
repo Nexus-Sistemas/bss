@@ -46,6 +46,7 @@ def _montar_where(
     id_sindicato: int | None,
     uf: str | None,
     ids_empresa: list[int] | None = None,
+    ids_sindicato: list[int] | None = None,
     empresa: str | None = None,
     cnpj: str | None = None,
     sindicato: str | None = None,
@@ -105,6 +106,9 @@ def _montar_where(
     if id_sindicato:
         where.append("v.id_sindicato_atual = %(id_sindicato)s")
         params["id_sindicato"] = id_sindicato
+    if ids_sindicato is not None:
+        where.append("v.id_sindicato_atual = ANY(%(ids_sindicato)s)")
+        params["ids_sindicato"] = list(ids_sindicato)
     if uf:
         where.append("v.trab_uf = %(uf)s")
         params["uf"] = uf
@@ -119,6 +123,7 @@ def listar(
     id_sindicato: int | None = None,
     uf: str | None = None,
     ids_empresa: list[int] | None = None,
+    ids_sindicato: list[int] | None = None,
     empresa: str | None = None,
     cnpj: str | None = None,
     sindicato: str | None = None,
@@ -138,7 +143,8 @@ def listar(
     direcao = "DESC" if desc else "ASC"
 
     where_sql, params = _montar_where(busca, situacao, id_empresa, id_sindicato,
-                                      uf, ids_empresa, empresa, cnpj, sindicato)
+                                      uf, ids_empresa, ids_sindicato,
+                                      empresa, cnpj, sindicato)
 
     sql_total = f"SELECT COUNT(*) AS total FROM bss.v_trabalhador v WHERE {where_sql}"
     sql_lista = f"""
@@ -182,6 +188,7 @@ def listar_tudo(
     id_sindicato: int | None = None,
     uf: str | None = None,
     ids_empresa: list[int] | None = None,
+    ids_sindicato: list[int] | None = None,
     empresa: str | None = None,
     cnpj: str | None = None,
     sindicato: str | None = None,
@@ -200,7 +207,8 @@ def listar_tudo(
     direcao = "DESC" if desc else "ASC"
 
     where_sql, params = _montar_where(busca, situacao, id_empresa, id_sindicato,
-                                      uf, ids_empresa, empresa, cnpj, sindicato)
+                                      uf, ids_empresa, ids_sindicato,
+                                      empresa, cnpj, sindicato)
     sql = f"""
         SELECT {COLUNAS_LISTA}
         FROM bss.v_trabalhador v

@@ -38,6 +38,7 @@ def listar(
     id_empresa: int | None = None,
     ids_empresa: list[int] | None = None,
     id_sindicato: int | None = None,
+    ids_sindicato: list[int] | None = None,
     aguardando_resposta: bool = False,
     # Quando informado, calcula `nao_lida` por linha (mensagem que ESTE usuário
     # ainda não viu) e habilita o filtro `so_nao_lidas`. É o sino do CLIENTE —
@@ -115,6 +116,9 @@ def listar(
     if id_sindicato:
         where.append("v.id_sindicato = %(id_sindicato)s")
         params["id_sindicato"] = id_sindicato
+    if ids_sindicato is not None:
+        where.append("v.id_sindicato = ANY(%(ids_sindicato)s)")
+        params["ids_sindicato"] = list(ids_sindicato)
 
     # Sino do CLIENTE: existe mensagem visível, que não é minha, criada depois
     # da minha última visita? Sem id_usuario_leitura a coluna vira FALSE

@@ -62,7 +62,24 @@ const COLUNAS = [
     render: c => `<span class="text-xs text-slate-500">${fmtData(c.criado_em)}</span>` },
   { id: "ultimo_login", label: "Último acesso", align: "right", sort: "ultimo_login",
     render: c => `<span class="text-xs text-slate-500">${c.ultimo_login ? fmtDataHora(c.ultimo_login) : "nunca"}</span>` },
+  // Atalho pro "Acessar como" direto da lista. Só pra contato ativo com login
+  // (sem e-mail = ficha do legado, não é usuário do portal). fixa = sempre visível.
+  { id: "acessar", label: "Ações", align: "center", sort: null, fixa: true,
+    render: c => (c.ativo && !ehSemEmail(c.email))
+      ? `<button onclick="event.stopPropagation(); acessarComoLista(${c.id})"
+                 class="px-2 py-1 text-xs bg-amber-600 hover:bg-amber-700 text-white rounded-md whitespace-nowrap">Acessar como</button>`
+      : `<span class="text-slate-300">—</span>` },
 ];
+
+async function acessarComoLista(id) {
+  if (!confirm("Acessar o portal COMO este contato?\n\n" +
+               "Tudo o que fizer fica registrado em seu nome na auditoria. Continuar?")) return;
+  try {
+    await acessarComo(id);   // troca o token e redireciona (api.js)
+  } catch (e) {
+    alert("Não foi possível acessar como este contato: " + e.message);
+  }
+}
 
 function colsVisiveis() { return COLUNAS.filter(c => !colsOcultas.includes(c.id)); }
 

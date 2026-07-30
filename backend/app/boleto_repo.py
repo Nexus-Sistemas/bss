@@ -27,6 +27,7 @@ def ids_por_filtro(
     id_empresa: int | None = None,
     ids_empresa: list[int] | None = None,
     id_sindicato: int | None = None,
+    ids_sindicato: list[int] | None = None,
     incluir_cancelados: bool = False,
 ) -> list[int]:
     """
@@ -58,6 +59,9 @@ def ids_por_filtro(
     if id_sindicato:
         where.append("v.id_sindicato = %(id_sindicato)s")
         params["id_sindicato"] = id_sindicato
+    if ids_sindicato is not None:
+        where.append("v.id_sindicato = ANY(%(ids_sindicato)s)")
+        params["ids_sindicato"] = list(ids_sindicato)
 
     sql = (f"SELECT v.id FROM bss.v_boleto v WHERE {' AND '.join(where)} "
            f"ORDER BY v.empresa, v.mes_referencia LIMIT {LIMITE_LOTE}")
@@ -73,6 +77,7 @@ def listar(
     id_empresa: int | None = None,
     ids_empresa: list[int] | None = None,
     id_sindicato: int | None = None,
+    ids_sindicato: list[int] | None = None,
     incluir_cancelados: bool = False,
     pagina: int = 1,
     por_pagina: int = 50,
@@ -127,6 +132,9 @@ def listar(
     if id_sindicato:
         where.append("v.id_sindicato = %(id_sindicato)s")
         params["id_sindicato"] = id_sindicato
+    if ids_sindicato is not None:
+        where.append("v.id_sindicato = ANY(%(ids_sindicato)s)")
+        params["ids_sindicato"] = list(ids_sindicato)
 
     where_sql = " AND ".join(where)
     sql_total = f"SELECT COUNT(*) AS total FROM bss.v_boleto v WHERE {where_sql}"

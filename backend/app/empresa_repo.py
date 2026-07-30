@@ -28,6 +28,7 @@ def listar(
     regularidade: str | None = None,
     uf: str | None = None,
     ids: list[int] | None = None,
+    ids_sindicato: list[int] | None = None,
     pagina: int = 1,
     por_pagina: int = 50,
     ordem: str = "razao_social",
@@ -85,6 +86,17 @@ def listar(
         where.append("v.id = ANY(%(ids)s)")
         params["ids"] = list(ids)
 
+    # ESCOPO POR SINDICATO: empresa não tem coluna de sindicato — a relação é
+    # indireta (empresa tem trabalhadores filiados a sindicatos). A view
+    # bss.empresa_sindicato_ativo materializa esse N:N. O sindicato só enxerga
+    # empresas que TÊM trabalhador ativo filiado a algum dos seus sindicatos.
+    if ids_sindicato is not None:
+        where.append(
+            "v.id IN (SELECT es.id_empresa FROM bss.empresa_sindicato_ativo es "
+            "WHERE es.id_sindicato = ANY(%(ids_sind)s))"
+        )
+        params["ids_sind"] = list(ids_sindicato)
+
     where_sql = " AND ".join(where)
     sql_total = f"SELECT COUNT(*) AS total FROM bss.v_empresa v WHERE {where_sql}"
     sql_lista = f"""
@@ -110,6 +122,22 @@ def listar(
 
     paginas = (total + por_pagina - 1) // por_pagina if total else 0
     return {"linhas": linhas, "total": total, "pagina": pagina, "por_pagina": por_pagina, "paginas": paginas}
+
+
+def empresa_no_escopo_sindicato(id_empresa: int, ids_sindicato: list[int]) -> bool:
+    """
+    True se a empresa tem trabalhador ativo filiado a algum dos sindicatos.
+    É o RLS de detalhe pro perfil sindicato (a lista já filtra pela mesma view).
+    """
+    if not ids_sindicato:
+        return False
+    with get_pg_connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            "SELECT 1 FROM bss.empresa_sindicato_ativo "
+            "WHERE id_empresa = %s AND id_sindicato = ANY(%s) LIMIT 1",
+            (id_empresa, list(ids_sindicato)),
+        )
+        return cur.fetchone() is not None
 
 
 def buscar_por_id(id_empresa: int) -> dict[str, Any] | None:

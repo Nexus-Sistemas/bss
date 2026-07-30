@@ -34,12 +34,14 @@
           </div>
 
           <div class="flex items-center gap-2 flex-wrap justify-end">
-            <!-- Ações de upload -->
-            <button onclick="abrirModalUpload('carregar')" class="px-2.5 py-1.5 text-xs bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">⬆ Carregar</button>
-            <button onclick="abrirModalUpload('inativar')" class="px-2.5 py-1.5 text-xs bg-amber-600 text-white rounded-lg hover:bg-amber-700 font-medium">❌ Inativar</button>
-            <button onclick="abrirModalUpload('dependentes')" class="px-2.5 py-1.5 text-xs bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-medium">👥 Dependentes</button>
-
-            <span class="w-px h-6 bg-slate-200 mx-1"></span>
+            <!-- Ações de upload (planilha) — escondidas pro sindicato (upload é
+                 empresa-only; sindicato inclui/edita individualmente). -->
+            <span id="acoes-upload" class="flex items-center gap-2">
+              <button onclick="abrirModalUpload('carregar')" class="px-2.5 py-1.5 text-xs bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">⬆ Carregar</button>
+              <button onclick="abrirModalUpload('inativar')" class="px-2.5 py-1.5 text-xs bg-amber-600 text-white rounded-lg hover:bg-amber-700 font-medium">❌ Inativar</button>
+              <button onclick="abrirModalUpload('dependentes')" class="px-2.5 py-1.5 text-xs bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-medium">👥 Dependentes</button>
+              <span class="w-px h-6 bg-slate-200 mx-1"></span>
+            </span>
 
             <!-- Controles do grid -->
             <div class="relative">

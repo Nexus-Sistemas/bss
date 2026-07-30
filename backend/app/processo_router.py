@@ -48,6 +48,7 @@ def listar(
     # O portal legado não tem "empresa atual": lista tudo que o usuário
     # administra, com a empresa como coluna. É o comportamento correto.
     ids_empresa: list[int] | None = None
+    ids_sindicato: list[int] | None = None
     if usuario.perfil == "empresa":
         if not usuario.empresas:
             return {"linhas": [], "total": 0, "pagina": 1,
@@ -60,10 +61,10 @@ def listar(
         if not usuario.sindicatos:
             return {"linhas": [], "total": 0, "pagina": 1,
                     "por_pagina": por_pagina, "paginas": 0}
-        if id_sindicato is None:
-            id_sindicato = usuario.sindicatos[0]
-        elif id_sindicato not in usuario.sindicatos:
+        # Escopo = todos os sindicatos do usuário; id_sindicato (seletor) estreita.
+        if id_sindicato is not None and id_sindicato not in usuario.sindicatos:
             raise HTTPException(403, "Sindicato fora do escopo")
+        ids_sindicato = usuario.sindicatos
 
     # Marca d'água de leitura só interessa a quem não é da equipe: o sino do
     # analista é derivado de quem falou por último (ver contar_nao_lidas).
@@ -72,7 +73,8 @@ def listar(
 
     return processo_repo.listar(
         busca=busca, status=status, status_categoria=status_categoria, tipo=tipo,
-        id_empresa=id_empresa, ids_empresa=ids_empresa, id_sindicato=id_sindicato,
+        id_empresa=id_empresa, ids_empresa=ids_empresa,
+        id_sindicato=id_sindicato, ids_sindicato=ids_sindicato,
         aguardando_resposta=aguardando_resposta,
         id_usuario_leitura=uid_leitura, so_nao_lidas=so_nao_lidas,
         pagina=pagina, por_pagina=por_pagina, ordem=ordem, desc=desc,

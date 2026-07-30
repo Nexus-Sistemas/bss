@@ -3,6 +3,13 @@
 const u = exigirLogin();
 if (u) document.getElementById("usuario-info").textContent = `${u.nome} (${u.perfil})`;
 
+// Sindicato não faz upload de planilha (carregar/inativar/dependentes) — inclui
+// e edita individualmente. Esconde o bloco de ações de upload pra esse perfil.
+if (u && u.perfil === "sindicato") {
+  const acoes = document.getElementById("acoes-upload");
+  if (acoes) acoes.classList.add("hidden");
+}
+
 let pagina = 1;
 let timer = null;
 
