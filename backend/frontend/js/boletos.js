@@ -122,6 +122,19 @@ async function baixarLote(tipo) {  // 'boletos' | 'listas'
   }
 }
 
+let _idsGerados = [];   // ids da última emissão, pro download em lote
+
+/* Baixa TUDO que acabou de ser gerado (ids exatos, via POST). */
+async function baixarGerados(tipo) {  // 'boletos' | 'listas'
+  if (!_idsGerados.length) return;
+  const rota = tipo === "listas" ? "listas-pdf" : "boletos-pdf";
+  try {
+    await apiAbrirPdfPost(`/boletos/lote/por-ids/${rota}`, { ids: _idsGerados });
+  } catch (e) {
+    alert(`Nada para baixar: ${e.message}`);
+  }
+}
+
 
 async function recarregar() { pagina = 1; await carregar(); }
 
@@ -511,6 +524,9 @@ function renderResultadoEmissao(r) {
   const pulados = r.pulados || [];
   const erros = r.erros || [];
 
+  // Guarda os ids gerados pra o download em lote (baixar tudo de uma vez).
+  _idsGerados = gerados.map(g => g.id_boleto);
+
   let html = `
     <div class="space-y-4">
       <div class="p-3 bg-emerald-50 border border-emerald-200 rounded text-emerald-900">
@@ -520,8 +536,19 @@ function renderResultadoEmissao(r) {
 
   if (gerados.length) {
     html += `
+      <div class="flex gap-2">
+        <button onclick="baixarGerados('boletos')"
+                class="px-3 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium">
+          ⬇ Baixar todos os boletos
+        </button>
+        <button onclick="baixarGerados('listas')"
+                class="px-3 py-2 text-sm bg-slate-600 hover:bg-slate-700 text-white rounded-lg font-medium">
+          ⬇ Baixar todas as listas
+        </button>
+      </div>`;
+    html += `
       <div>
-        <h3 class="font-semibold text-slate-800 mb-2">Boletos gerados — clique para baixar:</h3>
+        <h3 class="font-semibold text-slate-800 mb-2">Boletos gerados — clique para baixar individualmente:</h3>
         <table class="w-full text-sm">
           <thead class="bg-slate-50 text-xs text-slate-600 uppercase tracking-wider">
             <tr>

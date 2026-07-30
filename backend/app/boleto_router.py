@@ -264,6 +264,55 @@ def download_lote_listas(
     )
 
 
+class LoteIdsRequest(BaseModel):
+    ids: list[int]
+
+
+def _ids_acessiveis(usuario: UsuarioInfo, ids: list[int]) -> list[int]:
+    """Filtra os ids que o usuário PODE ver (escopo). Preserva a ordem pedida."""
+    ok = []
+    for i in ids[:boleto_repo.LIMITE_LOTE]:
+        row = boleto_repo.buscar_por_id(i)
+        if not row:
+            continue
+        try:
+            _check_acesso_boleto(usuario, row)
+            ok.append(i)
+        except HTTPException:
+            continue   # fora do escopo: ignora em silêncio (não vaza)
+    return ok
+
+
+@router.post("/lote/por-ids/boletos-pdf")
+def download_lote_boletos_ids(
+    payload: LoteIdsRequest,
+    usuario: Annotated[UsuarioInfo, Depends(usuario_logado)],
+):
+    """Boletos de ids explícitos num PDF só — usado pelo resultado da emissão
+    ('baixar tudo que acabou de gerar'). ids vão no corpo (podem ser centenas)."""
+    ids = _ids_acessiveis(usuario, payload.ids)
+    pdf = boleto_pdf.gerar_pdf_boletos_lote(ids) if ids else None
+    if not pdf:
+        raise HTTPException(404, "Nenhum boleto acessível para baixar")
+    return Response(content=pdf, media_type="application/pdf",
+                    headers={"Content-Disposition":
+                             f'attachment; filename="boletos_gerados_{len(ids)}.pdf"'})
+
+
+@router.post("/lote/por-ids/listas-pdf")
+def download_lote_listas_ids(
+    payload: LoteIdsRequest,
+    usuario: Annotated[UsuarioInfo, Depends(usuario_logado)],
+):
+    ids = _ids_acessiveis(usuario, payload.ids)
+    pdf = boleto_pdf.gerar_pdf_listas_lote(ids) if ids else None
+    if not pdf:
+        raise HTTPException(404, "Nenhuma lista acessível para baixar")
+    return Response(content=pdf, media_type="application/pdf",
+                    headers={"Content-Disposition":
+                             f'attachment; filename="listas_geradas_{len(ids)}.pdf"'})
+
+
 @router.get("/{id_boleto}/pdf")
 def download_pdf_boleto(
     id_boleto: int,

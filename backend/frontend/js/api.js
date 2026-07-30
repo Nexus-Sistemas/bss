@@ -141,6 +141,31 @@ async function apiBaixarArquivo(path, nomePadrao = "download") {
 }
 
 
+/**
+ * Igual ao apiAbrirPdf, mas via POST com corpo JSON — pra quando os parâmetros
+ * (ex.: centenas de ids) não cabem numa URL de GET.
+ */
+async function apiAbrirPdfPost(path, body) {
+  const token = localStorage.getItem(TOKEN_KEY);
+  const resp = await fetch(`${API_BASE}${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+  if (resp.status === 401) { logout(); throw new Error("Sessão expirada"); }
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(_msgErro(err, resp.status));
+  }
+  const blobUrl = URL.createObjectURL(await resp.blob());
+  window.open(blobUrl, "_blank");
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+}
+
+
 function logout() {
   localStorage.removeItem(TOKEN_KEY);
   window.location.href = "/app/login.html";
