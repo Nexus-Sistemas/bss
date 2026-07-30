@@ -23,35 +23,47 @@ def listar() -> list[dict[str, Any]]:
         return list(cur.fetchall())
 
 
+_COLS = """id, codigo, nome, destinatario, categoria, assunto, corpo, ativo,
+           observacao, cadencia_tipo, cadencia_dias, cadencia_postergar_fds,
+           atualizado_em"""
+
+
 def buscar(id_modelo: int) -> dict[str, Any] | None:
-    sql = """
-        SELECT id, codigo, nome, destinatario, categoria,
-               assunto, corpo, ativo, observacao, atualizado_em
-          FROM bss.modelo_email WHERE id = %s
-    """
     with get_pg_connection() as conn, conn.cursor() as cur:
-        cur.execute(sql, (id_modelo,))
+        cur.execute(f"SELECT {_COLS} FROM bss.modelo_email WHERE id = %s", (id_modelo,))
         return cur.fetchone()
 
 
+def listar_ativos_com_cadencia() -> list[dict[str, Any]]:
+    """Modelos ATIVOS com cadência automática (pro agendador). Manual fica fora."""
+    with get_pg_connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            f"SELECT {_COLS} FROM bss.modelo_email "
+            "WHERE ativo AND cadencia_tipo <> 'manual' ORDER BY id"
+        )
+        return list(cur.fetchall())
+
+
 def salvar(id_modelo: int, assunto: str, corpo: str, ativo: bool,
-           observacao: str | None, atualizado_por_id: int) -> dict[str, Any] | None:
+           observacao: str | None, atualizado_por_id: int,
+           cadencia_tipo: str, cadencia_dias: list[int] | None,
+           cadencia_postergar_fds: bool) -> dict[str, Any] | None:
     """
-    Grava o texto. NÃO deixa mexer em codigo nem destinatario: o codigo é a
-    chave que o disparo automático procura, e o destinatario define o conjunto
-    de variáveis — mudar qualquer um dos dois pela edição de texto quebraria
-    silenciosamente um gatilho ou tornaria variáveis órfãs de uma vez.
+    Grava texto + cadência. NÃO deixa mexer em codigo nem destinatario: o codigo
+    é a chave que o disparo procura, e o destinatario define as variáveis —
+    mudá-los pela edição quebraria um gatilho ou tornaria variáveis órfãs.
     """
-    sql = """
+    sql = f"""
         UPDATE bss.modelo_email
            SET assunto = %s, corpo = %s, ativo = %s, observacao = %s,
+               cadencia_tipo = %s, cadencia_dias = %s, cadencia_postergar_fds = %s,
                atualizado_por_id = %s, atualizado_em = NOW()
          WHERE id = %s
-        RETURNING id, codigo, nome, destinatario, categoria,
-                  assunto, corpo, ativo, observacao, atualizado_em
+        RETURNING {_COLS}
     """
     with get_pg_connection() as conn, conn.cursor() as cur:
         cur.execute(sql, (assunto, corpo, ativo, observacao,
+                          cadencia_tipo, cadencia_dias, cadencia_postergar_fds,
                           atualizado_por_id, id_modelo))
         row = cur.fetchone()
         conn.commit()

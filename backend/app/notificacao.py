@@ -47,10 +47,13 @@ def _remetente() -> str:
     return settings.SMTP_FROM or settings.SMTP_USER
 
 
-def _enviar(destinatarios: list[str], assunto: str, texto: str, html: str) -> None:
-    """Envia um e-mail. Engole qualquer erro — ver o princípio no topo."""
+def _enviar(destinatarios: list[str], assunto: str, texto: str, html: str) -> bool:
+    """
+    Envia um e-mail. Retorna True se enviou, False se falhou/desligado.
+    Engole a exceção (loga) — notificação nunca derruba a operação.
+    """
     if not _habilitado() or not destinatarios:
-        return
+        return False
     try:
         msg = EmailMessage()
         msg["Subject"] = assunto
@@ -88,8 +91,28 @@ def _enviar(destinatarios: list[str], assunto: str, texto: str, html: str) -> No
 
         log.info("e-mail enviado para %d destinatário(s): %s",
                  len(destinatarios), assunto)
+        return True
     except Exception as e:
         log.warning("falha ao enviar e-mail (%s): %s", assunto, e)
+        return False
+
+
+def enviar_simples(destino: str, assunto: str, corpo_texto: str) -> bool:
+    """
+    Envia um e-mail de texto pra UM destinatário. Retorna True/False.
+    Usado pelo disparo em massa (modelo_disparo). O corpo vem como texto (o que
+    o cliente escreve nos modelos); geramos um HTML simples preservando quebras.
+    """
+    if not destino:
+        return False
+    html = ("<div style=\"font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;"
+            "font-size:14px;color:#334155;white-space:pre-wrap\">"
+            + _escape_html(corpo_texto) + "</div>")
+    return _enviar([destino], assunto, corpo_texto, html)
+
+
+def _escape_html(s: str) -> str:
+    return (s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
 
 
 def _destinatarios_da_empresa(id_empresa: int, excluir_id_usuario: int | None = None

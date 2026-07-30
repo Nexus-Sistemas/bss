@@ -84,7 +84,19 @@ async function abrir(id) {
   document.getElementById("ed-obs").value = _atual.observacao || "";
   document.getElementById("ed-status").textContent = "";
 
+  // Cadência
+  document.getElementById("ed-cadencia").value = _atual.cadencia_tipo || "manual";
+  document.getElementById("ed-dias").value = (_atual.cadencia_dias || []).join(", ");
+  document.getElementById("ed-postergar").checked = _atual.cadencia_postergar_fds !== false;
+  toggleCadencia();
+
   renderPaleta();
+}
+
+function toggleCadencia() {
+  const t = document.getElementById("ed-cadencia").value;
+  document.getElementById("wrap-dias").classList.toggle("hidden", t !== "dias_do_mes");
+  document.getElementById("wrap-postergar").classList.toggle("hidden", t !== "dias_do_mes");
 }
 
 function renderPaleta() {
@@ -123,6 +135,10 @@ async function salvar() {
         corpo: document.getElementById("ed-corpo").value,
         ativo: document.getElementById("ed-ativo").checked,
         observacao: document.getElementById("ed-obs").value || null,
+        cadencia_tipo: document.getElementById("ed-cadencia").value,
+        cadencia_dias: document.getElementById("ed-dias").value
+          .split(",").map(s => parseInt(s.trim(), 10)).filter(n => n >= 1 && n <= 31),
+        cadencia_postergar_fds: document.getElementById("ed-postergar").checked,
       }),
     });
     _atual = salvo;
@@ -134,6 +150,64 @@ async function salvar() {
     st.className = "text-xs text-rose-600";
     // Erro de órfã volta o checkbox: não ficou ativo de verdade.
     if (e.message.includes("ativar")) document.getElementById("ed-ativo").checked = false;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+/* ------------------------- disparo (preview + real) --------------------- */
+
+async function preverDisparo() {
+  const st = document.getElementById("ed-status");
+  st.className = "text-xs text-slate-500";
+  st.textContent = "Calculando quem receberia…";
+  try {
+    const r = await apiFetch(`/modelos/${_atual.id}/preview-disparo`, { method: "POST" });
+    if (r.sem_publico_automatico) {
+      st.className = "text-xs text-amber-600";
+      st.textContent = "Este modelo não tem público automático (só disparo manual com lista).";
+      return;
+    }
+    const trava = r.redirecionado_para
+      ? `\n\n⚠ MODO TESTE: os envios iriam para ${r.redirecionado_para} (não para os reais).`
+      : "\n\n⚠ PRODUÇÃO: iria para os destinatários REAIS.";
+    const amostra = r.amostra
+      ? `\n\nExemplo (${r.amostra.para}):\nAssunto: ${r.amostra.assunto}\n\n${r.amostra.corpo}`
+      : "";
+    const orfas = r.amostra && r.amostra.orfas && r.amostra.orfas.length
+      ? `\n\n⚠ Variáveis órfãs: ${r.amostra.orfas.join(", ")}` : "";
+    const lista = r.alvos.map(a => `• ${a.nome} <${a.email}>`).join("\n");
+    alert(`${r.total} destinatário(s) receberiam.${trava}\n\n`
+          + `Primeiros:\n${lista}${r.total > r.alvos.length ? "\n…" : ""}`
+          + `${orfas}${amostra}`);
+    st.textContent = `${r.total} receberiam (pré-visualização, nada enviado).`;
+  } catch (e) {
+    st.className = "text-xs text-rose-600";
+    st.textContent = e.message;
+  }
+}
+
+async function dispararAgora() {
+  if (!_atual.ativo) {
+    alert("Ative o modelo antes de disparar."); return;
+  }
+  if (!confirm("DISPARAR este modelo agora?\n\nVai enviar e-mail para todos os "
+             + "destinatários do público atual (ou para o e-mail de teste, se a "
+             + "trava estiver ligada). Confirme com atenção.")) return;
+  const st = document.getElementById("ed-status");
+  const btn = document.getElementById("btn-disparar");
+  btn.disabled = true;
+  st.className = "text-xs text-slate-500";
+  st.textContent = "Disparando…";
+  try {
+    const r = await apiFetch(`/modelos/${_atual.id}/disparar-agora`, { method: "POST" });
+    st.className = "text-xs text-emerald-600";
+    const modo = r.redirecionado_para ? ` (modo teste → ${r.redirecionado_para})` : "";
+    st.textContent = `✓ ${r.enviados} enviado(s), ${r.pulados_ja_enviado_hoje} pulado(s) `
+                   + `(já hoje), ${r.falhas} falha(s)${modo}.`;
+  } catch (e) {
+    st.className = "text-xs text-rose-600";
+    st.textContent = e.message;
   } finally {
     btn.disabled = false;
   }

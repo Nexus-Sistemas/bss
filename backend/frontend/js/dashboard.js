@@ -20,6 +20,18 @@ if (u && u.perfil === "empresa") {
 
 if (u) document.getElementById("usuario-info").textContent = `${u.nome} (${u.perfil})`;
 
+/* Sininho de novos cadastros aguardando aprovação — na home do interno. */
+async function carregarSininho() {
+  try {
+    const d = await apiFetch("/contatos/pendentes/contagem");
+    if (d.pendentes > 0) {
+      document.getElementById("sininho").classList.remove("hidden");
+      document.getElementById("sininho-badge").textContent = d.pendentes;
+    }
+  } catch (e) { /* silencioso: o sino não pode derrubar o dashboard */ }
+}
+if (u && u.perfil !== "empresa") carregarSininho();
+
 function brl(n) {
   return Number(n || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }

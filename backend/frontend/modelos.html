@@ -78,14 +78,45 @@
                    class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2
                           focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
 
-            <div class="flex items-center gap-3 mt-4">
+            <!-- Cadência de disparo -->
+            <div class="mt-4 bg-slate-50 border border-slate-200 rounded-lg p-3">
+              <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Cadência de disparo</div>
+              <div class="flex items-center gap-3 flex-wrap">
+                <select id="ed-cadencia" onchange="toggleCadencia()"
+                        class="text-sm border border-slate-300 rounded-lg px-2 py-1.5 bg-white">
+                  <option value="manual">Manual (só botão)</option>
+                  <option value="diaria_util">Diária (dias úteis)</option>
+                  <option value="dias_do_mes">Dias fixos do mês</option>
+                </select>
+                <label id="wrap-dias" class="hidden text-sm text-slate-600">
+                  Dias (vírgula):
+                  <input id="ed-dias" type="text" placeholder="14, 28"
+                         class="ml-1 w-28 text-sm border border-slate-300 rounded-lg px-2 py-1.5">
+                </label>
+                <label id="wrap-postergar" class="hidden inline-flex items-center text-sm text-slate-600">
+                  <input id="ed-postergar" type="checkbox" class="mr-1" checked>
+                  Se cair no fim de semana, posterga p/ segunda
+                </label>
+              </div>
+              <p class="text-xs text-slate-400 mt-1">Só modelos com público automático podem ter cadência não-manual.</p>
+            </div>
+
+            <div class="flex items-center gap-3 mt-4 flex-wrap">
               <button onclick="salvar()" id="btn-salvar"
                       class="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium">
                 Salvar
               </button>
               <button onclick="abrirPreview()"
                       class="px-4 py-2 text-sm border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50">
-                Pré-visualizar com dados reais
+                Pré-visualizar variáveis
+              </button>
+              <button onclick="preverDisparo()"
+                      class="px-4 py-2 text-sm border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50">
+                Prever disparo (quem recebe)
+              </button>
+              <button onclick="dispararAgora()" id="btn-disparar"
+                      class="px-4 py-2 text-sm bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-medium">
+                Disparar agora
               </button>
               <span id="ed-status" class="text-xs"></span>
             </div>

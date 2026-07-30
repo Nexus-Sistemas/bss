@@ -17,6 +17,16 @@
         <div class="px-6 py-4 flex items-center justify-between">
           <h1 class="text-xl font-semibold text-slate-800">Dashboard</h1>
           <div class="flex items-center gap-3 text-sm">
+            <!-- Sininho: novos contatos (autocadastro) aguardando aprovação.
+                 Mesmo endpoint da tela de Contatos. -->
+            <a href="/app/contatos.html?pendentes=1" id="sininho"
+               class="hidden relative text-lg leading-none hover:scale-110 transition-transform"
+               title="Novos cadastros aguardando aprovação">
+              🔔
+              <span id="sininho-badge"
+                    class="absolute -top-1 -right-1 bg-rose-600 text-white text-[10px]
+                           rounded-full px-1.5 py-0.5 font-medium"></span>
+            </a>
             <span id="usuario-info" class="text-slate-500">—</span>
             <button onclick="logout()" class="text-slate-500 hover:text-slate-800">Sair</button>
           </div>

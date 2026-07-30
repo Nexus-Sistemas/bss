@@ -28,6 +28,14 @@ class Settings(BaseSettings):
     JWT_ALGORITHM:      str = "HS256"
     JWT_EXPIRE_MINUTES: int = 480  # 8h
 
+    # === Disparo de e-mail em massa (cadência) ===
+    # TRAVA DE SEGURANÇA: em homologação, defina EMAIL_REDIRECIONAR_PARA com um
+    # e-mail de teste. TODOS os disparos em massa vão pra ele (o destinatário
+    # real fica anotado no corpo), evitando cobrar empresas de verdade a partir
+    # do ambiente de teste. Em produção, deixe VAZIO → vai pros destinatários
+    # reais. Vale só pro disparo em massa; a notificação individual não usa.
+    EMAIL_REDIRECIONAR_PARA: str = ""
+
     # === Storage de documentos ===
     # Onde os arquivos enviados (certidões, comprovantes) são gravados.
     #   'local' → disco do servidor (dev/homolog na OCI)
