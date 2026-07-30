@@ -74,9 +74,12 @@ SQL_UPSERT = """
             -- o cálculo toda noite). Fica no INSERT só como semente inicial; quem
             -- mantém é scripts/reconciliar_regularidade.py.
             recebe_email_financeiro     = EXCLUDED.recebe_email_financeiro,
-            qtd_trabalhadores_ativos    = EXCLUDED.qtd_trabalhadores_ativos,
-            qtd_trabalhadores_inativos  = EXCLUDED.qtd_trabalhadores_inativos,
-            qtd_dependentes_ativos      = EXCLUDED.qtd_dependentes_ativos,
+            -- qtd_trabalhadores_* NÃO são atualizadas pela sync de propósito
+            -- (mesmo motivo da regularidade): o cache do legado mentia (476
+            -- numa empresa com 0). Agora quem mantém é a importação de planilha
+            -- (recalcula as empresas do upload) e scripts/reconciliar_qtd_trabalhadores.py.
+            -- Copiar aqui recriaria o cabo-de-guerra. Fica no INSERT só como
+            -- semente inicial de empresa nova.
             ultimo_boleto_em            = EXCLUDED.ultimo_boleto_em,
             ultima_notificacao_em       = EXCLUDED.ultima_notificacao_em,
             atualizado_em               = NOW()
