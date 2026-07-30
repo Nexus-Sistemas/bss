@@ -42,14 +42,15 @@ async function buscarCpf() {
 
   st.innerHTML = `<span class="text-emerald-700">✓ ${esc(_trab.nome_completo)} — cobertura válida.</span>`;
 
-  // Cabeçalho do trabalhador (leitura)
+  // Cabeçalho do trabalhador (leitura). Nome saiu daqui — virou campo editável
+  // abaixo (a planilha pode divergir da certidão em mãos).
   document.getElementById("trab-cabecalho").innerHTML = `
-    <div><span class="text-slate-400 text-xs">Nome</span><div>${esc(_trab.nome_completo)}</div></div>
     <div><span class="text-slate-400 text-xs">CPF</span><div class="font-mono">${fmtCpf(_trab.cpf)}</div></div>
     <div><span class="text-slate-400 text-xs">Empresa</span><div>${esc(_trab.empresa || "—")}</div></div>
     <div><span class="text-slate-400 text-xs">Sindicato</span><div>${esc(_trab.sindicato || "—")}</div></div>`;
 
-  // Complementares — pré-preenche o que já existe (reaproveita)
+  // Complementares — pré-preenche o que já existe (reaproveita); nome editável
+  document.getElementById("t-nome").value = _trab.nome_completo || "";
   document.getElementById("t-nascimento").value = _trab.data_nascimento || "";
   document.getElementById("t-admissao").value  = _trab.data_admissao || "";
   document.getElementById("t-genero").value    = _trab.genero || "";
@@ -155,8 +156,8 @@ async function salvar() {
   if (!_trab || !_tipo) { st.innerHTML = `<span class="text-rose-600">Busque o CPF e escolha o tipo.</span>`; return; }
 
   // Validação básica no cliente (o backend revalida tudo)
-  if (!val("t-nascimento") || !val("t-nome-mae")) {
-    st.innerHTML = `<span class="text-rose-600">Preencha nascimento e nome da mãe do trabalhador.</span>`; return;
+  if (!val("t-nome") || !val("t-nascimento") || !val("t-nome-mae")) {
+    st.innerHTML = `<span class="text-rose-600">Preencha nome, nascimento e nome da mãe do trabalhador.</span>`; return;
   }
   if (!val("b-data-evento")) {
     st.innerHTML = `<span class="text-rose-600">Informe a data do evento.</span>`; return;
@@ -171,6 +172,7 @@ async function salvar() {
     data_evento: val("b-data-evento"),
     qtd_bebes: _tipo.campos.qtd_bebes ? Number(val("b-qtd-bebes") || 1) : null,
     trabalhador: {
+      nome_completo: val("t-nome"),   // editável: corrige divergência da planilha
       data_nascimento: val("t-nascimento"), data_admissao: val("t-admissao"),
       genero: val("t-genero"), nome_mae: val("t-nome-mae"), rg: val("t-rg"),
     },

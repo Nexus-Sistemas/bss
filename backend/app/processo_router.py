@@ -190,6 +190,7 @@ async def criar(
         qtd_bebes=d.get("qtd_bebes"),
         id_usuario=usuario.id,
         trab_complementos={
+            "nome_completo": trab_c.get("nome_completo") or None,
             "data_nascimento": trab_c.get("data_nascimento") or None,
             "data_admissao": trab_c.get("data_admissao") or None,
             "genero": trab_c.get("genero") or None,

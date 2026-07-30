@@ -642,6 +642,7 @@ def criar_beneficio(
             cur.execute(
                 """
                 UPDATE bss.trabalhador SET
+                    nome_completo   = COALESCE(%(nome_completo)s, nome_completo),
                     data_nascimento = COALESCE(%(data_nascimento)s, data_nascimento),
                     data_admissao   = COALESCE(%(data_admissao)s, data_admissao),
                     genero          = COALESCE(%(genero)s, genero),
