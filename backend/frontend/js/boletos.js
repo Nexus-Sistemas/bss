@@ -100,6 +100,7 @@ function montarQuery() {
   // Perfil empresa: sem isto o backend cai em usuario.empresas[0] e mostra os
   // boletos de UMA das N empresas do usuário. No-op pra perfis internos.
   comEmpresaAtual(params);
+  comSindicatoAtual(params);
   return params.toString();
 }
 
@@ -114,6 +115,7 @@ async function baixarLote(tipo) {  // 'boletos' | 'listas'
   const f = ler();
   for (const [k, v] of Object.entries(f)) if (v !== "" && v != null) params.append(k, v);
   comEmpresaAtual(params);
+  comSindicatoAtual(params);
   const rota = tipo === "listas" ? "listas-pdf" : "boletos-pdf";
   try {
     await apiAbrirPdf(`/boletos/lote/${rota}?${params}`);
@@ -603,6 +605,7 @@ function renderResultadoEmissao(r) {
 
 // Seletor de empresa (só pro perfil 'empresa' com +1 CNPJ) — ver empresa-atual.js
 montarSeletorEmpresa("#seletor-empresa", recarregar);
+montarSeletorSindicato("#seletor-empresa", recarregar);   // mesmo container; um só renderiza por perfil
 carregar();
 
 // ?emitir=1 — chegou aqui vindo da carga de trabalhadores (trabalhadores.js).

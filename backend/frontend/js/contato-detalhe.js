@@ -79,6 +79,13 @@ function render(c) {
     !["admin", "interno", "analista"].includes(c.perfil);
   btnAC.classList.toggle("hidden", !podeAcessar);
 
+  // Alternar perfil empresa↔sindicato (só pra contato externo).
+  const externo = ["empresa", "sindicato"].includes(c.perfil);
+  document.getElementById("btn-tornar-sindicato").classList.toggle("hidden", !(externo && c.perfil === "empresa"));
+  document.getElementById("btn-tornar-empresa").classList.toggle("hidden", !(externo && c.perfil === "sindicato"));
+  // Contagem de sindicatos na aba:
+  document.getElementById("rcount-sindicatos").textContent = num(c.qtd_sindicatos || 0);
+
   // Contato sem e-mail = ficha de telefone/endereço, não usuário do portal
   if (semEmail) {
     const av = document.getElementById("aviso-sem-email");
@@ -126,7 +133,7 @@ function render(c) {
 
 /* --------------------------- abas de relacionamento ---------------------- */
 
-const REL = ["empresas", "solicitacoes"];
+const REL = ["empresas", "sindicatos", "solicitacoes"];
 
 function trocarRel(qual) {
   const ativa = "px-4 py-2.5 text-sm font-medium text-slate-800 border-b-2 border-indigo-600 whitespace-nowrap";
@@ -145,11 +152,112 @@ async function carregarRel(qual) {
   alvo.innerHTML = `<div class="py-8 text-center text-slate-400 text-sm">Carregando…</div>`;
   try {
     const dados = await apiFetch(`/contatos/${getId()}/${qual}`);
-    alvo.innerHTML = qual === "empresas" ? tabelaEmpresas(dados) : tabelaSolicitacoes(dados);
+    alvo.innerHTML = qual === "empresas" ? tabelaEmpresas(dados)
+                   : qual === "sindicatos" ? tabelaSindicatos(dados)
+                   : tabelaSolicitacoes(dados);
   } catch (e) {
     _relCarregada.delete(qual);
     alvo.innerHTML = `<div class="py-8 text-center text-rose-600 text-sm">Erro: ${e.message}</div>`;
   }
+}
+
+/* --------------------------- aba Sindicatos ------------------------------ */
+
+function tabelaSindicatos(linhas) {
+  document.getElementById("rcount-sindicatos").textContent = (linhas || []).filter(s => s.acesso_ativo).length;
+  const corpo = (linhas || []).map(s => `
+    <tr class="border-t border-slate-100 ${s.acesso_ativo ? "" : "opacity-50"}">
+      <td class="px-5 py-2">${s.razao_social || "—"}
+        ${s.nome_fantasia ? `<div class="text-[11px] text-slate-400">${s.nome_fantasia}</div>` : ""}</td>
+      <td class="px-3 py-2 font-mono text-xs">${fmtCnpj(s.cnpj)}</td>
+      <td class="px-3 py-2 text-xs text-slate-600">${s.uf_abrangencia || "—"}</td>
+      <td class="px-3 py-2 text-right font-mono text-xs">${num(s.qtd_trabalhadores_ativos)}</td>
+      <td class="px-3 py-2 text-center">${s.acesso_ativo
+        ? pill("ativo", "bg-emerald-100 text-emerald-800")
+        : pill("inativo", "bg-slate-200 text-slate-600")}</td>
+      <td class="px-3 py-2 text-center">
+        ${s.acesso_ativo
+          ? `<button onclick="removerSindicato(${s.id})" class="text-xs text-rose-600 hover:underline">Remover</button>`
+          : `<button onclick="adicionarSindicato(${s.id})" class="text-xs text-indigo-600 hover:underline">Reativar</button>`}
+      </td>
+    </tr>`).join("");
+  const linhasHtml = corpo || `<tr><td colspan="6" class="py-8 text-center text-slate-400 text-sm">
+      Nenhum sindicato vinculado. Use a busca abaixo para adicionar.</td></tr>`;
+  return `
+    <div class="p-4 border-b border-slate-100 bg-slate-50">
+      <div class="flex items-center gap-2">
+        <input id="busca-sind" type="text" placeholder="Buscar sindicato por nome ou CNPJ…"
+               onkeydown="if(event.key==='Enter')buscarSindicatos()"
+               class="flex-1 text-sm border border-slate-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-indigo-500">
+        <button onclick="buscarSindicatos()" class="px-3 py-1.5 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Buscar</button>
+      </div>
+      <div id="resultado-sind" class="mt-2"></div>
+    </div>
+    <div class="overflow-x-auto"><table class="w-full text-sm">
+      <thead class="bg-white text-slate-500"><tr>
+        <th class="px-5 py-2 text-left">Sindicato</th>
+        <th class="px-3 py-2 text-left">CNPJ</th>
+        <th class="px-3 py-2 text-left">UF</th>
+        <th class="px-3 py-2 text-right">Trabalhadores</th>
+        <th class="px-3 py-2 text-center">Acesso</th>
+        <th class="px-3 py-2 text-center">Ação</th>
+      </tr></thead><tbody>${linhasHtml}</tbody></table></div>`;
+}
+
+async function buscarSindicatos() {
+  const termo = document.getElementById("busca-sind").value.trim();
+  const alvo = document.getElementById("resultado-sind");
+  if (!termo) { alvo.innerHTML = ""; return; }
+  alvo.innerHTML = `<div class="text-xs text-slate-400 py-2">Buscando…</div>`;
+  try {
+    const d = await apiFetch(`/sindicatos?busca=${encodeURIComponent(termo)}&por_pagina=10`);
+    if (!d.linhas || !d.linhas.length) {
+      alvo.innerHTML = `<div class="text-xs text-slate-400 py-2">Nenhum sindicato encontrado.</div>`;
+      return;
+    }
+    alvo.innerHTML = d.linhas.map(s => `
+      <div class="flex items-center justify-between gap-2 py-1.5 border-b border-slate-100 text-sm">
+        <span>${s.razao_social || s.nome_fantasia || "—"}
+          <span class="text-xs text-slate-400 ml-1">${fmtCnpj(s.cnpj)}</span></span>
+        <button onclick="adicionarSindicato(${s.id})" class="px-2 py-1 text-xs bg-emerald-600 text-white rounded-md hover:bg-emerald-700">+ Adicionar</button>
+      </div>`).join("");
+  } catch (e) {
+    alvo.innerHTML = `<div class="text-xs text-rose-600 py-2">${e.message}</div>`;
+  }
+}
+
+async function adicionarSindicato(idSind) {
+  try {
+    await apiFetch(`/contatos/${getId()}/sindicatos`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id_sindicato: idSind }),
+    });
+    _relCarregada.delete("sindicatos");
+    await carregarRel("sindicatos");
+  } catch (e) { alert(e.message); }
+}
+
+async function removerSindicato(idSind) {
+  if (!confirm("Remover o acesso deste sindicato?")) return;
+  try {
+    await apiFetch(`/contatos/${getId()}/sindicatos/${idSind}`, { method: "DELETE" });
+    _relCarregada.delete("sindicatos");
+    await carregarRel("sindicatos");
+  } catch (e) { alert(e.message); }
+}
+
+async function alternarPerfil(novo) {
+  const msg = novo === "sindicato"
+    ? "Tornar este contato um usuário de SINDICATO?\n\nEle passará a ver dados por sindicato (não por empresa). Precisa relogar para valer."
+    : "Tornar este contato um usuário de EMPRESA?\n\nPrecisa relogar para valer.";
+  if (!confirm(msg)) return;
+  try {
+    await apiFetch(`/contatos/${getId()}/perfil`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ perfil: novo }),
+    });
+    await carregar();   // recarrega o cabeçalho (badges/botões)
+  } catch (e) { alert(e.message); }
 }
 
 function tabelaEmpresas(linhas) {

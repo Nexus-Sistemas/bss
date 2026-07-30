@@ -29,17 +29,25 @@ def listar(
     ativo: bool | None = None,
     tipo_cadastro: str | None = None,
     id_empresa: int | None = None,
+    perfil: str | None = None,
     pagina: int = 1,
     por_pagina: int = 50,
     ordem: str = "nome",
     desc: bool = False,
 ) -> dict[str, Any]:
     """
-    Lista contatos (perfil='empresa') com a contagem de empresas que cada um
-    administra. `busca` casa nome, e-mail ou CNPJ de empresa administrada.
+    Lista contatos (usuários externos do portal: perfil empresa OU sindicato)
+    com a contagem de empresas/sindicatos que cada um administra. `busca` casa
+    nome, e-mail ou CNPJ de empresa administrada. `perfil` filtra um tipo.
     """
-    where = ["u.perfil = 'empresa'"]
-    params: dict[str, Any] = {}
+    # Contato = usuário externo do portal. Empresa e sindicato convivem na mesma
+    # tela; o filtro `perfil` escolhe um. Interno/admin/analista NÃO são contatos.
+    if perfil in ("empresa", "sindicato"):
+        where = ["u.perfil = %(perfil)s"]
+        params: dict[str, Any] = {"perfil": perfil}
+    else:
+        where = ["u.perfil IN ('empresa','sindicato')"]
+        params = {}
 
     if busca:
         digitos = _so_digitos(busca)
@@ -76,11 +84,13 @@ def listar(
 
     sql_total = f"SELECT COUNT(*) AS total FROM bss_users u WHERE {where_sql}"
     sql_lista = f"""
-        SELECT u.id, u.nome, u.email, u.telefone, u.ativo,
+        SELECT u.id, u.nome, u.email, u.telefone, u.ativo, u.perfil,
                u.tipo_cadastro, u.criado_em, u.ultimo_login,
                u.preferencias_notificacao,
                (SELECT COUNT(*) FROM bss.usuario_empresa ue
-                 WHERE ue.id_usuario = u.id AND ue.ativo) AS qtd_empresas
+                 WHERE ue.id_usuario = u.id AND ue.ativo) AS qtd_empresas,
+               (SELECT COUNT(*) FROM bss.usuario_sindicato us
+                 WHERE us.id_usuario = u.id AND us.ativo) AS qtd_sindicatos
           FROM bss_users u
          WHERE {where_sql}
          ORDER BY {ordem_sql} {direcao} NULLS LAST
@@ -108,9 +118,11 @@ def buscar_detalhe(id_contato: int) -> dict[str, Any] | None:
                u.tipo_cadastro, u.criado_em, u.ultimo_login,
                u.preferencias_notificacao, u.id_legado_uuid,
                (SELECT COUNT(*) FROM bss.usuario_empresa ue
-                 WHERE ue.id_usuario = u.id AND ue.ativo) AS qtd_empresas
+                 WHERE ue.id_usuario = u.id AND ue.ativo) AS qtd_empresas,
+               (SELECT COUNT(*) FROM bss.usuario_sindicato us
+                 WHERE us.id_usuario = u.id AND us.ativo) AS qtd_sindicatos
           FROM bss_users u
-         WHERE u.id = %s AND u.perfil = 'empresa'
+         WHERE u.id = %s AND u.perfil IN ('empresa','sindicato')
     """
     with get_pg_connection() as conn:
         with conn.cursor() as cur:
@@ -140,6 +152,61 @@ def listar_empresas(id_contato: int) -> list[dict[str, Any]]:
         with conn.cursor() as cur:
             cur.execute(sql, (id_contato,))
             return list(cur.fetchall())
+
+
+def listar_sindicatos(id_contato: int) -> list[dict[str, Any]]:
+    """Os sindicatos que o contato (perfil sindicato) administra."""
+    sql = """
+        SELECT s.id, s.cnpj, s.razao_social, s.nome_fantasia,
+               s.uf_abrangencia, s.qtd_trabalhadores_ativos,
+               us.ativo     AS acesso_ativo,
+               us.criado_em AS vinculado_em
+          FROM bss.usuario_sindicato us
+          JOIN bss.sindicato s ON s.id = us.id_sindicato
+         WHERE us.id_usuario = %s
+         ORDER BY s.razao_social
+    """
+    with get_pg_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, (id_contato,))
+            return list(cur.fetchall())
+
+
+def definir_perfil(id_contato: int, perfil: str) -> bool:
+    """Muda o perfil do contato entre empresa e sindicato. Só troca se o alvo
+    hoje é um contato externo (não deixa mexer em interno por engano)."""
+    with get_pg_connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            "UPDATE bss_users SET perfil = %s "
+            "WHERE id = %s AND perfil IN ('empresa','sindicato')",
+            (perfil, id_contato),
+        )
+        mudou = cur.rowcount > 0
+        conn.commit()
+    return mudou
+
+
+def vincular_sindicato(id_contato: int, id_sindicato: int) -> None:
+    """Liga (ou reativa) o contato a um sindicato."""
+    with get_pg_connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO bss.usuario_sindicato (id_usuario, id_sindicato, ativo) "
+            "VALUES (%s, %s, TRUE) "
+            "ON CONFLICT (id_usuario, id_sindicato) DO UPDATE SET ativo = TRUE",
+            (id_contato, id_sindicato),
+        )
+        conn.commit()
+
+
+def desvincular_sindicato(id_contato: int, id_sindicato: int) -> None:
+    """Desliga o vínculo (mantém histórico: só marca ativo=FALSE)."""
+    with get_pg_connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            "UPDATE bss.usuario_sindicato SET ativo = FALSE "
+            "WHERE id_usuario = %s AND id_sindicato = %s",
+            (id_contato, id_sindicato),
+        )
+        conn.commit()
 
 
 def listar_solicitacoes(id_contato: int) -> list[dict[str, Any]]:

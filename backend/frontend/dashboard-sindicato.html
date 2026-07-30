@@ -2,9 +2,10 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <title>Dashboard — Sindicato — BSS</title>
+  <title>Painel do Sindicato — BSS</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 </head>
 <body class="bg-slate-50">
   <div class="flex h-screen overflow-hidden">
@@ -12,78 +13,150 @@
 
     <div class="flex-1 flex flex-col overflow-hidden">
       <header class="bg-white border-b border-slate-200 flex-shrink-0">
-        <div class="px-6 py-4 flex items-center justify-between">
+        <div class="px-6 py-4 flex items-center justify-between gap-4">
           <div>
             <h1 class="text-xl font-semibold text-slate-800">Painel do Sindicato</h1>
             <p id="sub" class="text-xs text-slate-500 mt-0.5">—</p>
           </div>
-          <div class="flex items-center gap-3 text-sm">
-            <span id="usuario-info" class="text-slate-500">—</span>
-            <button onclick="logout()" class="text-slate-500 hover:text-slate-800">Sair</button>
+          <div class="flex items-center gap-4">
+            <div id="seletor-sindicato"></div>
+            <div class="flex items-center gap-3 text-sm">
+              <span id="usuario-info" class="text-slate-500">—</span>
+              <button onclick="logout()" class="text-slate-500 hover:text-slate-800">Sair</button>
+            </div>
           </div>
         </div>
       </header>
 
-      <main class="flex-1 overflow-y-auto px-6 py-6">
-        <!-- Cards de resumo (escopados ao(s) sindicato(s) do usuário) -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <a href="/app/trabalhadores.html" class="bg-white rounded-xl border border-slate-200 p-5 hover:border-indigo-300 hover:shadow-sm transition">
+      <main class="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+        <!-- Números grandes -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <a href="/app/trabalhadores.html" class="bg-white rounded-xl border border-slate-200 p-5 hover:border-indigo-300">
             <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Trabalhadores ativos</div>
-            <div id="kpi-trab" class="mt-2 text-3xl font-bold text-slate-800">—</div>
+            <div id="kpi-trab" class="mt-2 text-4xl font-bold text-slate-800">—</div>
           </a>
-          <a href="/app/empresas.html" class="bg-white rounded-xl border border-slate-200 p-5 hover:border-indigo-300 hover:shadow-sm transition">
-            <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Empresas</div>
-            <div id="kpi-emp" class="mt-2 text-3xl font-bold text-slate-800">—</div>
+          <a href="/app/empresas.html" class="bg-white rounded-xl border border-slate-200 p-5 hover:border-indigo-300">
+            <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Empresas contribuintes</div>
+            <div id="kpi-emp" class="mt-2 text-4xl font-bold text-slate-800">—</div>
           </a>
-          <a href="/app/boletos.html" class="bg-white rounded-xl border border-slate-200 p-5 hover:border-indigo-300 hover:shadow-sm transition">
-            <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Boletos (mês atual)</div>
-            <div id="kpi-bol" class="mt-2 text-3xl font-bold text-slate-800">—</div>
-          </a>
-          <a href="/app/processos.html" class="bg-white rounded-xl border border-slate-200 p-5 hover:border-indigo-300 hover:shadow-sm transition">
-            <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Benefícios</div>
-            <div id="kpi-ben" class="mt-2 text-3xl font-bold text-slate-800">—</div>
+          <a href="/app/boletos.html" class="bg-white rounded-xl border border-slate-200 p-5 hover:border-indigo-300">
+            <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Boletos do mês (total)</div>
+            <div id="kpi-bol" class="mt-2 text-4xl font-bold text-slate-800">—</div>
           </a>
         </div>
 
-        <div class="bg-white rounded-xl border border-slate-200 p-6">
-          <h2 class="text-sm font-semibold text-slate-700 mb-2">Painel completo em construção</h2>
-          <p class="text-sm text-slate-500 max-w-2xl">
-            Os gráficos detalhados (trabalhadores por sindicato, boletos vencendo por
-            regra e por empresa, pendências e benefícios por tipo/status) serão
-            adicionados aqui. Por enquanto, use os atalhos acima e o menu à esquerda.
-          </p>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <!-- Trabalhador x Sindicato -->
+          <div class="bg-white rounded-xl border border-slate-200 p-5">
+            <h2 class="text-sm font-semibold text-slate-700 mb-3">Trabalhadores por sindicato</h2>
+            <div id="tab-sind" class="text-sm"></div>
+          </div>
+          <!-- Trabalhadores por empresa -->
+          <div class="bg-white rounded-xl border border-slate-200 p-5">
+            <h2 class="text-sm font-semibold text-slate-700 mb-3">Trabalhadores por empresa (top 15)</h2>
+            <div id="tab-emp" class="text-sm max-h-80 overflow-y-auto"></div>
+          </div>
         </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <!-- Boletos do mês por status -->
+          <div class="bg-white rounded-xl border border-slate-200 p-5">
+            <h2 class="text-sm font-semibold text-slate-700 mb-3">Boletos do mês por situação</h2>
+            <div class="flex items-center gap-4">
+              <div class="w-48 h-48"><canvas id="chart-boletos"></canvas></div>
+              <div id="leg-boletos" class="text-sm flex-1"></div>
+            </div>
+          </div>
+          <!-- Benefícios por categoria -->
+          <div class="bg-white rounded-xl border border-slate-200 p-5">
+            <h2 class="text-sm font-semibold text-slate-700 mb-3">Benefícios por situação</h2>
+            <div class="flex items-center gap-4">
+              <div class="w-48 h-48"><canvas id="chart-benef"></canvas></div>
+              <div id="leg-benef" class="text-sm flex-1"></div>
+            </div>
+          </div>
+        </div>
+
+        <p class="text-xs text-slate-400">
+          Faltam ainda: boletos vencidos por regra e por empresa, e benefícios por
+          tipo × status — serão adicionados na próxima etapa.
+        </p>
       </main>
     </div>
   </div>
 
   <script src="/app/js/api.js"></script>
   <script src="/app/js/sidebar.js"></script>
+  <script src="/app/js/sindicato-atual.js"></script>
   <script>renderizarSidebar("dashboard");</script>
   <script>
     const u = exigirLogin();
-    if (u) {
-      document.getElementById("usuario-info").textContent = `${u.nome} (${u.perfil})`;
-      if (u.perfil !== "sindicato") {
-        // Perfil errado: manda pro dashboard certo (não vaza tela).
-        document.getElementById("sub").textContent = "";
+    if (u) document.getElementById("usuario-info").textContent = `${u.nome} (${u.perfil})`;
+
+    const CORES = ["#6366f1","#22c55e","#f59e0b","#ef4444","#06b6d4","#a855f7","#94a3b8","#ec4899"];
+    let _chartB = null, _chartN = null;
+
+    function _num(n) { return Number(n || 0).toLocaleString("pt-BR"); }
+    function _moeda(n) { return Number(n || 0).toLocaleString("pt-BR", {style:"currency", currency:"BRL"}); }
+
+    function tabela(alvo, linhas, colValor, fmt) {
+      const el = document.getElementById(alvo);
+      if (!linhas || !linhas.length) { el.innerHTML = `<div class="text-slate-400 py-4">Sem dados.</div>`; return; }
+      const max = Math.max(...linhas.map(l => Number(l[colValor] || 0))) || 1;
+      el.innerHTML = linhas.map(l => {
+        const nome = l.sindicato || l.empresa || "—";
+        const v = Number(l[colValor] || 0);
+        const pct = Math.round(v / max * 100);
+        return `<div class="flex items-center justify-between gap-3 py-1 border-b border-slate-50">
+          <span class="truncate flex-1 text-slate-700" title="${nome}">${nome}</span>
+          <span class="w-24 h-2 bg-slate-100 rounded-full overflow-hidden hidden sm:block">
+            <span class="block h-full bg-indigo-400" style="width:${pct}%"></span></span>
+          <span class="font-mono text-slate-800 w-16 text-right">${fmt(v)}</span>
+        </div>`;
+      }).join("");
+    }
+
+    function rosca(canvasId, legId, itens, labelKey, valKey, fmt) {
+      const labels = itens.map(i => i[labelKey] || "—");
+      const dados = itens.map(i => Number(i[valKey] || 0));
+      const total = dados.reduce((a,b)=>a+b, 0);
+      const leg = document.getElementById(legId);
+      leg.innerHTML = itens.length
+        ? itens.map((i,idx) => `<div class="flex items-center justify-between gap-2 py-0.5">
+            <span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full" style="background:${CORES[idx%CORES.length]}"></span>
+              ${i[labelKey] || "—"}</span>
+            <span class="font-mono text-slate-600">${fmt(i[valKey])}</span></div>`).join("")
+          + `<div class="mt-2 pt-2 border-t text-slate-500 flex justify-between"><span>Total</span><span class="font-mono">${fmt(total)}</span></div>`
+        : `<div class="text-slate-400">Sem dados neste mês.</div>`;
+      const ctx = document.getElementById(canvasId);
+      const cfg = { type:"doughnut",
+        data:{ labels, datasets:[{ data:dados, backgroundColor:CORES, borderWidth:0 }] },
+        options:{ plugins:{legend:{display:false}}, cutout:"62%", responsive:true, maintainAspectRatio:false } };
+      if (canvasId === "chart-boletos") { if(_chartB)_chartB.destroy(); _chartB = new Chart(ctx, cfg); }
+      else { if(_chartN)_chartN.destroy(); _chartN = new Chart(ctx, cfg); }
+    }
+
+    async function carregar() {
+      const params = new URLSearchParams();
+      if (typeof comSindicatoAtual === "function") comSindicatoAtual(params);
+      const qs = params.toString() ? "?" + params.toString() : "";
+      try {
+        const d = await apiFetch(`/dashboard-sindicato/resumo${qs}`);
+        document.getElementById("kpi-trab").textContent = _num(d.trab_ativos);
+        document.getElementById("kpi-emp").textContent = _num(d.empresas);
+        const totalBol = (d.boletos_mes || []).reduce((a,b)=>a+Number(b.valor||0),0);
+        document.getElementById("kpi-bol").textContent = _moeda(totalBol);
+        tabela("tab-sind", d.trab_por_sindicato, "ativos", _num);
+        tabela("tab-emp", d.trab_por_empresa, "ativos", _num);
+        rosca("chart-boletos", "leg-boletos", d.boletos_mes || [], "status", "valor", _moeda);
+        rosca("chart-benef", "leg-benef", d.beneficios_categoria || [], "categoria", "qtd", _num);
+      } catch (e) {
+        document.getElementById("sub").textContent = "Erro: " + e.message;
       }
     }
 
-    function _mes() {
-      const d = new Date();
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    }
-    async function _total(path) {
-      try { const d = await apiFetch(path); return (d.total ?? 0).toLocaleString("pt-BR"); }
-      catch { return "—"; }
-    }
-    (async () => {
-      document.getElementById("kpi-trab").textContent = await _total("/trabalhadores?situacao=ativo&por_pagina=1");
-      document.getElementById("kpi-emp").textContent  = await _total("/empresas?por_pagina=1");
-      document.getElementById("kpi-bol").textContent  = await _total(`/boletos?mes_referencia=${_mes()}&por_pagina=1`);
-      document.getElementById("kpi-ben").textContent  = await _total("/processos?por_pagina=1");
-    })();
+    montarSeletorSindicato("#seletor-sindicato", carregar);
+    carregar();
   </script>
 </body>
 </html>

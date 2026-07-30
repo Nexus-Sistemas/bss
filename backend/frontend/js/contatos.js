@@ -44,6 +44,10 @@ const COLUNAS = [
     render: c => ehSemEmail(c.email)
       ? `<span class="text-slate-400 italic text-xs" title="Contato sem e-mail no legado — não é usuário do portal">sem e-mail</span>`
       : `<span class="text-xs text-slate-600">${c.email}</span>` },
+  { id: "perfil", label: "Perfil", align: "center", sort: null,
+    render: c => c.perfil === "sindicato"
+      ? pill("sindicato", "bg-purple-100 text-purple-800")
+      : pill("empresa", "bg-sky-100 text-sky-800") },
   { id: "telefone", label: "Telefone", align: "left", sort: null,
     render: c => `<span class="text-xs text-slate-600">${c.telefone || "—"}</span>` },
   { id: "empresas", label: "Empresas", align: "right", sort: "qtd_empresas",
@@ -93,6 +97,8 @@ function montarQuery() {
   if (tipo) p.append("tipo_cadastro", tipo);
   const ativo = document.getElementById("f-ativo").value;
   if (ativo) p.append("ativo", ativo);
+  const perfil = document.getElementById("f-perfil").value;
+  if (perfil) p.append("perfil", perfil);
   p.append("ordem", ordenacao.campo);
   if (ordenacao.desc) p.append("desc", "true");
   p.append("pagina", pagina);

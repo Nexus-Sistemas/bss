@@ -38,6 +38,7 @@ function montarQuery() {
   // Perfil empresa: sem isto o backend cai em usuario.empresas[0] e mostra os
   // benefícios de UMA das N empresas do usuário. No-op pra perfis internos.
   comEmpresaAtual(params);
+  comSindicatoAtual(params);
   // O sino filtra coisas diferentes conforme o lado do balcão:
   //   analista → processos em que o CLIENTE falou por último
   //   cliente  → processos com mensagem que ELE ainda não leu
@@ -196,5 +197,6 @@ function limparFiltros() {
 renderTabsCategoria();
 // Seletor de empresa (só pro perfil 'empresa' com +1 CNPJ) — ver empresa-atual.js
 montarSeletorEmpresa("#seletor-empresa", recarregar);
+montarSeletorSindicato("#seletor-empresa", recarregar);   // mesmo container; um só renderiza por perfil
 carregar();
 carregarSininho();

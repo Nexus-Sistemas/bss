@@ -17,6 +17,7 @@ vê a lista de quem administra o quê.
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 
 from .auth import UsuarioInfo, usuario_logado
 from . import contato_repo
@@ -39,6 +40,7 @@ def listar(
     ativo: bool | None = None,
     tipo_cadastro: str | None = Query(None, description="auto | interno"),
     id_empresa: int | None = None,
+    perfil: str | None = Query(None, description="empresa | sindicato"),
     pagina: int = 1,
     por_pagina: int = 50,
     ordem: str = "nome",
@@ -47,7 +49,7 @@ def listar(
     _exigir_interno(usuario)
     return contato_repo.listar(
         busca=busca, ativo=ativo, tipo_cadastro=tipo_cadastro,
-        id_empresa=id_empresa, pagina=pagina, por_pagina=por_pagina,
+        id_empresa=id_empresa, perfil=perfil, pagina=pagina, por_pagina=por_pagina,
         ordem=ordem, desc=desc,
     )
 
@@ -98,3 +100,61 @@ def solicitacoes(
 ):
     _exigir_interno(usuario)
     return contato_repo.listar_solicitacoes(id_contato)
+
+
+# === Contato ↔ Sindicato (perfil sindicato) ================================
+
+@router.get("/{id_contato}/sindicatos")
+def sindicatos(
+    id_contato: int,
+    usuario: Annotated[UsuarioInfo, Depends(usuario_logado)],
+):
+    """Sindicatos que o contato administra (aba de relacionamento)."""
+    _exigir_interno(usuario)
+    return contato_repo.listar_sindicatos(id_contato)
+
+
+class PerfilIn(BaseModel):
+    perfil: str   # 'empresa' | 'sindicato'
+
+
+@router.put("/{id_contato}/perfil")
+def definir_perfil(
+    id_contato: int,
+    dados: PerfilIn,
+    usuario: Annotated[UsuarioInfo, Depends(usuario_logado)],
+):
+    """Alterna o contato entre empresa e sindicato. (Não mexe em perfil interno.)"""
+    _exigir_interno(usuario)
+    if dados.perfil not in ("empresa", "sindicato"):
+        raise HTTPException(400, "Perfil deve ser 'empresa' ou 'sindicato'")
+    if not contato_repo.definir_perfil(id_contato, dados.perfil):
+        raise HTTPException(404, "Contato externo não encontrado")
+    return {"ok": True, "perfil": dados.perfil,
+            "aviso": "O usuário precisa fazer login de novo para o novo perfil valer."}
+
+
+class SindicatoIn(BaseModel):
+    id_sindicato: int
+
+
+@router.post("/{id_contato}/sindicatos")
+def vincular_sindicato(
+    id_contato: int,
+    dados: SindicatoIn,
+    usuario: Annotated[UsuarioInfo, Depends(usuario_logado)],
+):
+    _exigir_interno(usuario)
+    contato_repo.vincular_sindicato(id_contato, dados.id_sindicato)
+    return {"ok": True}
+
+
+@router.delete("/{id_contato}/sindicatos/{id_sindicato}")
+def desvincular_sindicato(
+    id_contato: int,
+    id_sindicato: int,
+    usuario: Annotated[UsuarioInfo, Depends(usuario_logado)],
+):
+    _exigir_interno(usuario)
+    contato_repo.desvincular_sindicato(id_contato, id_sindicato)
+    return {"ok": True}

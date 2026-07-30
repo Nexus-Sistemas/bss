@@ -19,6 +19,14 @@
             <span id="badges"></span>
           </div>
           <div class="flex items-center gap-3 text-sm">
+            <button id="btn-tornar-sindicato" onclick="alternarPerfil('sindicato')"
+                    class="hidden px-3 py-1.5 border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-lg font-medium">
+              Tornar sindicato
+            </button>
+            <button id="btn-tornar-empresa" onclick="alternarPerfil('empresa')"
+                    class="hidden px-3 py-1.5 border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-lg font-medium">
+              Tornar empresa
+            </button>
             <button id="btn-acessar-como" onclick="acessarComoContato()"
                     class="hidden px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-medium">
               Acessar como
@@ -56,10 +64,15 @@
                       class="px-4 py-2.5 text-sm font-medium text-slate-800 border-b-2 border-indigo-600 whitespace-nowrap">
                 Empresas <span id="rcount-empresas" class="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-slate-100 text-slate-600">·</span>
               </button>
+              <button id="rtab-sindicatos" onclick="trocarRel('sindicatos')"
+                      class="px-4 py-2.5 text-sm text-slate-500 hover:text-slate-800 whitespace-nowrap">
+                Sindicatos <span id="rcount-sindicatos" class="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-slate-100 text-slate-600">·</span>
+              </button>
               <button id="rtab-solicitacoes" onclick="trocarRel('solicitacoes')"
                       class="px-4 py-2.5 text-sm text-slate-500 hover:text-slate-800 whitespace-nowrap">Solicitações de acesso</button>
             </div>
             <div id="rel-empresas" class="min-h-[140px]"></div>
+            <div id="rel-sindicatos" class="hidden min-h-[140px]"></div>
             <div id="rel-solicitacoes" class="hidden min-h-[140px]"></div>
           </section>
 

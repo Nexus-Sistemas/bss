@@ -172,6 +172,7 @@ function montarQuery() {
   // cai em usuario.empresas[0] e o usuário vê UMA das suas N empresas, sem
   // saber qual nem como trocar. Não faz nada pra perfis internos.
   comEmpresaAtual(params);
+  comSindicatoAtual(params);
 
   return params.toString();
 }
@@ -583,5 +584,6 @@ function renderSucessoFinal(data) {
 // recarregar() volta pra página 1 — trocar de empresa e cair na página 7 da
 // anterior seria confuso.
 montarSeletorEmpresa("#seletor-empresa", recarregar);
+montarSeletorSindicato("#seletor-empresa", recarregar);   // mesmo container; um só renderiza por perfil
 
 carregar();
