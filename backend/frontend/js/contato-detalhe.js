@@ -79,10 +79,9 @@ function render(c) {
     !["admin", "interno", "analista"].includes(c.perfil);
   btnAC.classList.toggle("hidden", !podeAcessar);
 
-  // Alternar perfil empresa↔sindicato (só pra contato externo).
+  // Editar (nome/e-mail/telefone/perfil/ativo/preferências) — só contato externo.
   const externo = ["empresa", "sindicato"].includes(c.perfil);
-  document.getElementById("btn-tornar-sindicato").classList.toggle("hidden", !(externo && c.perfil === "empresa"));
-  document.getElementById("btn-tornar-empresa").classList.toggle("hidden", !(externo && c.perfil === "sindicato"));
+  document.getElementById("btn-editar").classList.toggle("hidden", !externo);
   // Contagem de sindicatos na aba:
   document.getElementById("rcount-sindicatos").textContent = num(c.qtd_sindicatos || 0);
 
@@ -246,18 +245,62 @@ async function removerSindicato(idSind) {
   } catch (e) { alert(e.message); }
 }
 
-async function alternarPerfil(novo) {
-  const msg = novo === "sindicato"
-    ? "Tornar este contato um usuário de SINDICATO?\n\nEle passará a ver dados por sindicato (não por empresa). Precisa relogar para valer."
-    : "Tornar este contato um usuário de EMPRESA?\n\nPrecisa relogar para valer.";
-  if (!confirm(msg)) return;
+/* ------------------------------ edição ---------------------------------- */
+
+function abrirEdicao() {
+  const c = _contato;
+  if (!c) return;
+  document.getElementById("e-nome").value = c.nome || "";
+  document.getElementById("e-email").value = ehSemEmail(c.email) ? "" : (c.email || "");
+  document.getElementById("e-telefone").value = c.telefone || "";
+  document.getElementById("e-perfil").value = c.perfil === "sindicato" ? "sindicato" : "empresa";
+  document.getElementById("e-ativo").checked = !!c.ativo;
+  const p = c.preferencias_notificacao || {};
+  document.getElementById("e-pref-financeiro").checked = !!p.financeiro;
+  document.getElementById("e-pref-beneficio").checked = !!p.beneficio;
+  document.getElementById("e-pref-atualizacao").checked = !!p.atualizacao;
+  document.getElementById("e-pref-boleto").checked = !!p.boleto;
+  document.getElementById("e-msg").textContent = "";
+  document.getElementById("modal-editar").classList.remove("hidden");
+}
+
+function fecharEdicao() {
+  document.getElementById("modal-editar").classList.add("hidden");
+}
+
+async function salvarEdicao() {
+  const btn = document.getElementById("btn-salvar-edicao");
+  const msg = document.getElementById("e-msg");
+  const corpo = {
+    nome: document.getElementById("e-nome").value.trim(),
+    email: document.getElementById("e-email").value.trim(),
+    telefone: document.getElementById("e-telefone").value.trim() || null,
+    perfil: document.getElementById("e-perfil").value,
+    ativo: document.getElementById("e-ativo").checked,
+    preferencias: {
+      financeiro: document.getElementById("e-pref-financeiro").checked,
+      beneficio: document.getElementById("e-pref-beneficio").checked,
+      atualizacao: document.getElementById("e-pref-atualizacao").checked,
+      boleto: document.getElementById("e-pref-boleto").checked,
+    },
+  };
+  if (!corpo.nome) { msg.textContent = "Informe o nome."; msg.className = "text-xs text-rose-600"; return; }
+  if (!corpo.email) { msg.textContent = "Informe o e-mail."; msg.className = "text-xs text-rose-600"; return; }
+
+  btn.disabled = true;
+  msg.textContent = "Salvando…"; msg.className = "text-xs text-slate-400";
   try {
-    await apiFetch(`/contatos/${getId()}/perfil`, {
+    await apiFetch(`/contatos/${getId()}`, {
       method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ perfil: novo }),
+      body: JSON.stringify(corpo),
     });
-    await carregar();   // recarrega o cabeçalho (badges/botões)
-  } catch (e) { alert(e.message); }
+    fecharEdicao();
+    await carregar();   // recarrega cabeçalho/badges
+  } catch (e) {
+    msg.textContent = e.message; msg.className = "text-xs text-rose-600";
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 function tabelaEmpresas(linhas) {

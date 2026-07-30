@@ -83,6 +83,42 @@ def detalhe(
     return row
 
 
+class ContatoEditar(BaseModel):
+    nome: str
+    email: str
+    telefone: str | None = None
+    perfil: str                       # 'empresa' | 'sindicato'
+    ativo: bool = True
+    preferencias: dict | None = None  # {financeiro, beneficio, atualizacao, boleto}
+
+
+@router.put("/{id_contato}")
+def editar(
+    id_contato: int,
+    dados: ContatoEditar,
+    usuario: Annotated[UsuarioInfo, Depends(usuario_logado)],
+):
+    """Edita o contato externo — inclusive o perfil (empresa↔sindicato)."""
+    _exigir_interno(usuario)
+    if not (dados.nome or "").strip():
+        raise HTTPException(400, "Nome é obrigatório")
+    if "@" not in (dados.email or "") or "." not in dados.email.split("@")[-1]:
+        raise HTTPException(400, "E-mail inválido")
+    if dados.perfil not in ("empresa", "sindicato"):
+        raise HTTPException(400, "Perfil deve ser 'empresa' ou 'sindicato'")
+    if contato_repo.email_em_uso(dados.email.strip(), id_contato):
+        raise HTTPException(409, "Já existe um usuário com esse e-mail")
+    row = contato_repo.atualizar(
+        id_contato, dados.nome.strip(), dados.email.strip(),
+        (dados.telefone or "").strip() or None, dados.perfil, dados.ativo,
+        dados.preferencias,
+    )
+    if not row:
+        raise HTTPException(404, "Contato externo não encontrado")
+    row["aviso"] = "Mudanças de perfil/vínculo só valem no próximo login do usuário."
+    return row
+
+
 @router.get("/{id_contato}/empresas")
 def empresas(
     id_contato: int,

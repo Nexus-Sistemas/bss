@@ -19,13 +19,9 @@
             <span id="badges"></span>
           </div>
           <div class="flex items-center gap-3 text-sm">
-            <button id="btn-tornar-sindicato" onclick="alternarPerfil('sindicato')"
+            <button id="btn-editar" onclick="abrirEdicao()"
                     class="hidden px-3 py-1.5 border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-lg font-medium">
-              Tornar sindicato
-            </button>
-            <button id="btn-tornar-empresa" onclick="alternarPerfil('empresa')"
-                    class="hidden px-3 py-1.5 border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-lg font-medium">
-              Tornar empresa
+              Editar
             </button>
             <button id="btn-acessar-como" onclick="acessarComoContato()"
                     class="hidden px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-medium">
@@ -87,6 +83,61 @@
 
         <div id="erro" class="hidden text-rose-600 text-center py-8"></div>
       </main>
+
+      <!-- Modal de edição do contato -->
+      <div id="modal-editar" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-xl max-w-lg w-full max-h-[90vh] flex flex-col">
+          <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-3">
+            <h3 class="font-semibold text-slate-800">Editar contato</h3>
+            <button onclick="fecharEdicao()" class="text-slate-400 hover:text-slate-700 text-xl leading-none">&times;</button>
+          </div>
+          <div class="px-5 py-4 overflow-y-auto flex-1 space-y-3 text-sm">
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Nome *</label>
+              <input id="e-nome" type="text" class="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500">
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">E-mail (login) *</label>
+                <input id="e-email" type="email" class="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Telefone</label>
+                <input id="e-telefone" type="text" class="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500">
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Perfil</label>
+                <select id="e-perfil" class="w-full border border-slate-300 rounded-lg px-2 py-2 bg-white">
+                  <option value="empresa">Empresa</option>
+                  <option value="sindicato">Sindicato</option>
+                </select>
+              </div>
+              <div class="flex items-end">
+                <label class="inline-flex items-center text-slate-700 pb-2">
+                  <input type="checkbox" id="e-ativo" class="mr-2"> Ativo (pode logar)
+                </label>
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Preferências de notificação</label>
+              <div class="grid grid-cols-2 gap-2">
+                <label class="inline-flex items-center text-slate-700"><input type="checkbox" id="e-pref-financeiro" class="mr-2">Financeiro</label>
+                <label class="inline-flex items-center text-slate-700"><input type="checkbox" id="e-pref-beneficio" class="mr-2">Benefícios</label>
+                <label class="inline-flex items-center text-slate-700"><input type="checkbox" id="e-pref-atualizacao" class="mr-2">Atualização</label>
+                <label class="inline-flex items-center text-slate-700"><input type="checkbox" id="e-pref-boleto" class="mr-2">Boletos</label>
+              </div>
+            </div>
+            <p class="text-xs text-slate-400">Mudança de perfil só vale no próximo login do usuário.</p>
+          </div>
+          <div class="px-5 py-4 border-t border-slate-100 flex items-center gap-3">
+            <button onclick="salvarEdicao()" id="btn-salvar-edicao" class="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium">Salvar</button>
+            <button onclick="fecharEdicao()" class="px-4 py-2 text-sm border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50">Cancelar</button>
+            <span id="e-msg" class="text-xs"></span>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 

@@ -9,6 +9,7 @@ SuiteCRM só aceita 1 empresa por contato e a saída foi duplicar o contato.
 
 from __future__ import annotations
 
+import json
 import re
 from typing import Any
 
@@ -170,6 +171,41 @@ def listar_sindicatos(id_contato: int) -> list[dict[str, Any]]:
         with conn.cursor() as cur:
             cur.execute(sql, (id_contato,))
             return list(cur.fetchall())
+
+
+def email_em_uso(email: str, excluir_id: int) -> bool:
+    """E-mail já usado por OUTRO usuário? (unique global em bss_users)."""
+    with get_pg_connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            "SELECT 1 FROM bss_users WHERE LOWER(email)=LOWER(%s) AND id <> %s",
+            (email, excluir_id),
+        )
+        return cur.fetchone() is not None
+
+
+def atualizar(id_contato: int, nome: str, email: str, telefone: str | None,
+              perfil: str, ativo: bool, preferencias: dict | None) -> dict | None:
+    """
+    Edita um contato EXTERNO (empresa/sindicato). O analista muda inclusive o
+    perfil aqui — não há mais botão separado de "tornar sindicato". Não mexe em
+    usuário interno (guarda no WHERE).
+    """
+    with get_pg_connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            UPDATE bss_users SET
+                nome = %s, email = LOWER(%s), telefone = %s,
+                perfil = %s, ativo = %s,
+                preferencias_notificacao = COALESCE(%s::jsonb, preferencias_notificacao)
+             WHERE id = %s AND perfil IN ('empresa','sindicato')
+            """,
+            (nome, email, telefone, perfil, ativo,
+             json.dumps(preferencias) if preferencias is not None else None,
+             id_contato),
+        )
+        mudou = cur.rowcount > 0
+        conn.commit()
+    return buscar_detalhe(id_contato) if mudou else None
 
 
 def definir_perfil(id_contato: int, perfil: str) -> bool:
