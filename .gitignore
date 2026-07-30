@@ -15,6 +15,14 @@
 **/schema_suitecrm.sql
 **/schema_suitecrm_resumo.md
 **/schema_suitecrm_dados.json
+# Dumps de inspeção que ficam soltos no backend/ ao rodar os scripts de análise
+backend/inspecao_*.txt
+
+# Artefatos que nunca fizeram parte do app e vivem aparecendo no status:
+#   BRIEFING.md  — anotações da primeira sessão (o projeto seguiu além delas)
+#   nexus-ui/    — protótipo de UI descartado; a UI real está em backend/frontend
+BRIEFING.md
+nexus-ui/
 
 # Documentos de processo (DADOS PESSOAIS REAIS — nunca versionar)
 # Certidões de óbito, RG, CPF, comprovantes de beneficiários de verdade.

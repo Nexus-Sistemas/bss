@@ -36,8 +36,18 @@ WorkingDirectory=/home/opc/bss-portal/backend
 # 127.0.0.1, NÃO 0.0.0.0: quem fala com o mundo é o nginx. O uvicorn só
 # escuta local. Assim a :8000 nunca precisa ser aberta no firewall — e a
 # porta continua fechada mesmo se alguém errar a regra depois.
+# --workers 4: um por núcleo da OCI (nproc=4). Cada worker é um PROCESSO
+# separado, com seu próprio GIL — é o que dá paralelismo real. Com 1 worker
+# (config antiga), o teste de carga travava em ~22 req/s e a latência crescia
+# linear com a concorrência (GIL serializando tudo num núcleo só).
+#
+# Cada worker cria seu pool de até 15 conexões (app/database.py):
+# 4 × 15 = 60 < max_connections=100, com folga pra sync e psql.
+#
+# App é stateless (JWT, sem sessão em memória), então múltiplos workers são
+# seguros — nenhum estado pra compartilhar entre eles.
 ExecStart=/home/opc/bss-portal/backend/venv/bin/uvicorn app.main:app \
-          --host 127.0.0.1 --port 8000 \
+          --host 127.0.0.1 --port 8000 --workers 4 \
           --proxy-headers --forwarded-allow-ips='127.0.0.1'
 
 # --proxy-headers + forwarded-allow-ips: sem isso, o autocadastro grava o IP

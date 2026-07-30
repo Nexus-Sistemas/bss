@@ -368,6 +368,30 @@ E, do **CloudWatch** (o cliente já tem o painel de Health Check — ótimo):
 > dimensionamento do S3 e a estimativa de tempo do Big Bang (migração dos
 > binários).
 
+### 8.1 Resultado da medição do banco legado (já feita)
+
+Medido via nossa conexão de leitura (`scripts/medir_tamanho_legado.py`):
+
+- **Banco inteiro: 11,28 GB** (5,38 GB dados + 5,90 GB índices, 293 tabelas).
+- **Boa parte NÃO migra** (cruft do SuiteCRM): workflow (`aow_processed*` ~2,8 GB),
+  e-mails (`emails*` ~1,3 GB), `job_queue` (256 MB), tabelas `_audit`. O dado de
+  negócio efetivo é ~7 GB, e o maior item é a junção boleto↔trabalhador
+  (4,2 GB / 7 M linhas — já sincronizada).
+- **Conclusão de sizing do banco:** 11 GB é pequeno. Um `db.t4g.large`
+  (2 vCPU / 8 GB) com 50-100 GB de disco gp3 atende com folga enorme.
+
+**Documentos (o que dimensiona o S3):**
+
+- `documents`: **~85.000** arquivos no total.
+- `documents_cases`: **~22.000** ligados a processos (os documentos de benefício
+  — o subconjunto que de fato interessa ao BSS).
+- **Falta só o tamanho em bytes** (o `du -sh` do admin). Estimativa preliminar,
+  a ~500 KB/arquivo: **~10 a 40 GB** no S3. Cresce sob demanda; nada a
+  provisionar antecipado.
+
+> Ou seja: o legado é **pequeno**. Isso reforça a estratégia de tier mínimo — a
+> nova estrutura, indexada e enxuta, roda sobrando nesse porte de dados.
+
 ---
 
 ## 9. Resumo executivo (uma linha por item pedido)
