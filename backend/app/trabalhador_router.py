@@ -67,6 +67,9 @@ def listar(
     id_empresa: int | None = None,
     id_sindicato: int | None = None,
     uf: str | None = Query(None, max_length=2),
+    empresa: str | None = None,
+    cnpj: str | None = None,
+    sindicato: str | None = None,
     pagina: int = 1,
     por_pagina: int = 50,
     ordem: str = "nome_completo",
@@ -91,6 +94,9 @@ def listar(
         ids_empresa=ids_empresa,
         id_sindicato=id_sindicato,
         uf=uf,
+        empresa=empresa,
+        cnpj=cnpj,
+        sindicato=sindicato,
         pagina=pagina,
         por_pagina=por_pagina,
         ordem=ordem,
@@ -106,6 +112,9 @@ def exportar(
     id_empresa: int | None = None,
     id_sindicato: int | None = None,
     uf: str | None = Query(None, max_length=2),
+    empresa: str | None = None,
+    cnpj: str | None = None,
+    sindicato: str | None = None,
     ordem: str = "nome_completo",
     desc: bool = False,
 ):
@@ -127,7 +136,8 @@ def exportar(
     linhas = trabalhador_repo.listar_tudo(
         busca=busca, situacao=situacao, id_empresa=id_empresa,
         ids_empresa=ids_empresa, id_sindicato=id_sindicato,
-        uf=uf, ordem=ordem, desc=desc,
+        uf=uf, empresa=empresa, cnpj=cnpj, sindicato=sindicato,
+        ordem=ordem, desc=desc,
     )
 
     from openpyxl import Workbook

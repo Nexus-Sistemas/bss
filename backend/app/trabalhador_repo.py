@@ -46,6 +46,9 @@ def _montar_where(
     id_sindicato: int | None,
     uf: str | None,
     ids_empresa: list[int] | None = None,
+    empresa: str | None = None,
+    cnpj: str | None = None,
+    sindicato: str | None = None,
 ) -> tuple[str, dict[str, Any]]:
     """
     Monta o WHERE compartilhado entre listar() e listar_tudo().
@@ -83,6 +86,16 @@ def _montar_where(
     if situacao:
         where.append("v.situacao = %(situacao)s")
         params["situacao"] = situacao
+    # Filtros avançados por nome/cnpj — dentro do escopo, não o alargam.
+    if empresa:
+        where.append("v.empresa ILIKE %(f_empresa)s")
+        params["f_empresa"] = f"%{empresa}%"
+    if cnpj:
+        where.append("v.empresa_cnpj LIKE %(f_cnpj)s")
+        params["f_cnpj"] = _so_digitos(cnpj) + "%"
+    if sindicato:
+        where.append("v.sindicato ILIKE %(f_sind)s")
+        params["f_sind"] = f"%{sindicato}%"
     if id_empresa:
         where.append("v.id_empresa_atual = %(id_empresa)s")
         params["id_empresa"] = id_empresa
@@ -106,6 +119,9 @@ def listar(
     id_sindicato: int | None = None,
     uf: str | None = None,
     ids_empresa: list[int] | None = None,
+    empresa: str | None = None,
+    cnpj: str | None = None,
+    sindicato: str | None = None,
     pagina: int = 1,
     por_pagina: int = 50,
     ordem: str = "nome_completo",
@@ -121,8 +137,8 @@ def listar(
         ordem = "nome_completo"
     direcao = "DESC" if desc else "ASC"
 
-    where_sql, params = _montar_where(busca, situacao, id_empresa,
-                                      id_sindicato, uf, ids_empresa)
+    where_sql, params = _montar_where(busca, situacao, id_empresa, id_sindicato,
+                                      uf, ids_empresa, empresa, cnpj, sindicato)
 
     sql_total = f"SELECT COUNT(*) AS total FROM bss.v_trabalhador v WHERE {where_sql}"
     sql_lista = f"""
@@ -166,6 +182,9 @@ def listar_tudo(
     id_sindicato: int | None = None,
     uf: str | None = None,
     ids_empresa: list[int] | None = None,
+    empresa: str | None = None,
+    cnpj: str | None = None,
+    sindicato: str | None = None,
     ordem: str = "nome_completo",
     desc: bool = False,
 ) -> list[dict[str, Any]]:
@@ -180,8 +199,8 @@ def listar_tudo(
         ordem = "nome_completo"
     direcao = "DESC" if desc else "ASC"
 
-    where_sql, params = _montar_where(busca, situacao, id_empresa,
-                                      id_sindicato, uf, ids_empresa)
+    where_sql, params = _montar_where(busca, situacao, id_empresa, id_sindicato,
+                                      uf, ids_empresa, empresa, cnpj, sindicato)
     sql = f"""
         SELECT {COLUNAS_LISTA}
         FROM bss.v_trabalhador v

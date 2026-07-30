@@ -117,6 +117,9 @@ const COLUNAS = [
 const FILTRO_CAMPOS = [
   { id: "situacao", label: "Situação", tipo: "select", operadores: ["é igual a"],
     opcoes: [{ value: "ativo", label: "Ativo" }, { value: "inativo", label: "Inativo" }, { value: "carencia", label: "Carência" }] },
+  { id: "empresa", label: "Empresa", tipo: "text", operadores: ["contém", "é igual a"] },
+  { id: "cnpj", label: "CNPJ", tipo: "text", operadores: ["começa com"] },
+  { id: "sindicato", label: "Sindicato", tipo: "text", operadores: ["contém", "é igual a"] },
   { id: "uf", label: "UF", tipo: "text", operadores: ["é igual a", "preenchido", "vazio"] },
 ];
 
@@ -129,10 +132,12 @@ function colsVisiveis() { return COLUNAS.filter(c => !colsOcultas.includes(c.id)
 function condicoesParaParams(conds) {
   const p = {};
   for (const c of conds) {
-    if (c.campo === "situacao" && c.operador === "é igual a" && c.valor) p.situacao = c.valor;
-    if (c.campo === "uf") {
-      if (c.operador === "é igual a" && c.valor) p.uf = String(c.valor).toUpperCase();
-    }
+    if (!c.valor) continue;
+    if (c.campo === "situacao" && c.operador === "é igual a") p.situacao = c.valor;
+    if (c.campo === "empresa")   p.empresa = c.valor;      // backend faz ILIKE %valor%
+    if (c.campo === "cnpj")      p.cnpj = c.valor;         // backend faz prefixo por dígitos
+    if (c.campo === "sindicato") p.sindicato = c.valor;    // backend faz ILIKE %valor%
+    if (c.campo === "uf" && c.operador === "é igual a") p.uf = String(c.valor).toUpperCase();
   }
   return p;
 }
@@ -147,6 +152,9 @@ function montarQuery() {
   const situacao = adv.situacao || preset;     // filtro avançado tem prioridade
   if (situacao) params.append("situacao", situacao);
   if (adv.uf) params.append("uf", adv.uf);
+  if (adv.empresa) params.append("empresa", adv.empresa);
+  if (adv.cnpj) params.append("cnpj", adv.cnpj);
+  if (adv.sindicato) params.append("sindicato", adv.sindicato);
 
   params.append("ordem", ordenacao.campo);
   if (ordenacao.desc) params.append("desc", "true");
