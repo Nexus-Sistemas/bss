@@ -329,6 +329,35 @@ def processar_carga_trabalhadores(
             )
             qtd_inativadas = cur.rowcount
 
+            # 10) Recalcula o cache qtd_trabalhadores_* das empresas do upload.
+            #     A importação mexe em bss.trabalhador, mas a coluna de contagem
+            #     da empresa é derivada — sem isto, o detalhe da empresa mostra
+            #     os trabalhadores mas a contagem fica velha (ex.: 0 após subir).
+            #     Recontamos só as empresas tocadas, não a base toda.
+            cur.execute(
+                """
+                UPDATE bss.empresa e SET
+                    qtd_trabalhadores_ativos = c.ativos,
+                    qtd_trabalhadores_inativos = c.inativos,
+                    qtd_dependentes_ativos = c.deps,
+                    atualizado_em = NOW()
+                  FROM (
+                    SELECT e2.id,
+                           COUNT(*) FILTER (WHERE t.situacao='ativo'
+                                              AND t.titularidade='titular')   AS ativos,
+                           COUNT(*) FILTER (WHERE t.situacao<>'ativo'
+                                              AND t.titularidade='titular')   AS inativos,
+                           COUNT(*) FILTER (WHERE t.situacao='ativo'
+                                              AND t.titularidade='dependente') AS deps
+                      FROM bss.empresa e2
+                      LEFT JOIN bss.trabalhador t ON t.id_empresa_atual = e2.id
+                     WHERE e2.id IN (SELECT DISTINCT id_empresa FROM _stage)
+                     GROUP BY e2.id
+                  ) c
+                 WHERE c.id = e.id
+                """
+            )
+
         conn.commit()
 
     return {
