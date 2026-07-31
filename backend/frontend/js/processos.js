@@ -194,9 +194,24 @@ function limparFiltros() {
   recarregar();
 }
 
+// Popular o dropdown de STATUS a partir da tabela (bss.status_processo).
+async function carregarStatus() {
+  try {
+    const lista = await apiFetch("/processos/status-disponiveis");
+    const sel = document.getElementById("f-status");
+    for (const s of lista) {
+      const opt = document.createElement("option");
+      opt.value = s.codigo;
+      opt.textContent = s.nome;
+      sel.appendChild(opt);
+    }
+  } catch (e) { /* silencioso: mantém "Todos" */ }
+}
+
 renderTabsCategoria();
 // Seletor de empresa (só pro perfil 'empresa' com +1 CNPJ) — ver empresa-atual.js
 montarSeletorEmpresa("#seletor-empresa", recarregar);
 montarSeletorSindicato("#seletor-empresa", recarregar);   // mesmo container; um só renderiza por perfil
+carregarStatus();
 carregar();
 carregarSininho();

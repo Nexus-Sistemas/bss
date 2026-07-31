@@ -381,9 +381,12 @@ def criar_mensagem(
 def status_disponiveis(
     usuario: Annotated[UsuarioInfo, Depends(usuario_logado)],
 ):
-    """Opções do dropdown 'mudar status para…' na resposta do analista."""
-    if usuario.perfil not in processo_repo.PERFIS_INTERNOS:
-        raise HTTPException(403, "Acesso restrito à equipe interna")
+    """
+    Lista de status (bss.status_processo). Serve pra dois usos: o dropdown
+    'mudar status para…' do analista E o filtro de status da tela de Benefícios.
+    São só rótulos de workflow (não sensível), então qualquer usuário logado lê —
+    a AÇÃO de mudar status é que fica restrita (ver mudar_status).
+    """
     return processo_repo.listar_status_disponiveis()
 
 
