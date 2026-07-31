@@ -16,7 +16,7 @@ from .database import get_pg_connection
 def resumo(ids_sindicato: list[int]) -> dict[str, Any]:
     if not ids_sindicato:
         return {"trab_ativos": 0, "empresas": 0, "trab_por_sindicato": [],
-                "trab_por_empresa": [], "boletos_mes": [], "beneficios_categoria": [],
+                "trab_por_empresa": [], "boletos_mes": [], "beneficios_status": [],
                 "boletos_vencidos_regra": [], "boletos_vencidos_empresa": [],
                 "beneficios_tipo_status": []}
 
@@ -59,10 +59,10 @@ def resumo(ids_sindicato: list[int]) -> dict[str, Any]:
 
         # Benefícios por categoria de status (pendências)
         cur.execute(
-            "SELECT COALESCE(status_categoria,'—') AS categoria, COUNT(*) AS qtd "
+            "SELECT COALESCE(status_nome,'—') AS status, COUNT(*) AS qtd "
             "FROM bss.v_processo WHERE id_sindicato = ANY(%s) "
-            "GROUP BY status_categoria ORDER BY qtd DESC", (ids,))
-        beneficios_categoria = [dict(r) for r in cur.fetchall()]
+            "GROUP BY status_nome ORDER BY qtd DESC", (ids,))
+        beneficios_status = [dict(r) for r in cur.fetchall()]
 
         # Boletos VENCIDOS por regra (sindicato) — vencido = venc. no passado e
         # ainda não pago/cancelado (robusto: não depende do status 'vencido').
@@ -93,7 +93,7 @@ def resumo(ids_sindicato: list[int]) -> dict[str, Any]:
         "trab_por_sindicato": trab_por_sindicato,
         "trab_por_empresa": trab_por_empresa,
         "boletos_mes": boletos_mes,
-        "beneficios_categoria": beneficios_categoria,
+        "beneficios_status": beneficios_status,
         "boletos_vencidos_regra": boletos_vencidos_regra,
         "boletos_vencidos_empresa": boletos_vencidos_empresa,
         "beneficios_tipo_status": beneficios_tipo_status,
