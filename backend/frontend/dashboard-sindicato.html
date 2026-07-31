@@ -77,10 +77,24 @@
           </div>
         </div>
 
-        <p class="text-xs text-slate-400">
-          Faltam ainda: boletos vencidos por regra e por empresa, e benefícios por
-          tipo × status — serão adicionados na próxima etapa.
-        </p>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <!-- Boletos vencidos por regra (sindicato) -->
+          <div class="bg-white rounded-xl border border-slate-200 p-5">
+            <h2 class="text-sm font-semibold text-slate-700 mb-3">Boletos vencidos por regra (sindicato)</h2>
+            <div id="tab-venc-regra" class="text-sm max-h-80 overflow-y-auto"></div>
+          </div>
+          <!-- Boletos vencidos por empresa -->
+          <div class="bg-white rounded-xl border border-slate-200 p-5">
+            <h2 class="text-sm font-semibold text-slate-700 mb-3">Boletos vencidos por empresa (top 15)</h2>
+            <div id="tab-venc-empresa" class="text-sm max-h-80 overflow-y-auto"></div>
+          </div>
+        </div>
+
+        <!-- Benefícios por tipo × status -->
+        <div class="bg-white rounded-xl border border-slate-200 p-5">
+          <h2 class="text-sm font-semibold text-slate-700 mb-3">Benefícios por tipo × situação</h2>
+          <div id="tab-tipo-status" class="overflow-x-auto text-sm"></div>
+        </div>
       </main>
     </div>
   </div>
@@ -150,9 +164,39 @@
         tabela("tab-emp", d.trab_por_empresa, "ativos", _num);
         rosca("chart-boletos", "leg-boletos", d.boletos_mes || [], "status", "valor", _moeda);
         rosca("chart-benef", "leg-benef", d.beneficios_categoria || [], "categoria", "qtd", _num);
+        tabela("tab-venc-regra", d.boletos_vencidos_regra, "valor", _moeda);
+        tabela("tab-venc-empresa", d.boletos_vencidos_empresa, "valor", _moeda);
+        matrizTipoStatus(d.beneficios_tipo_status || []);
       } catch (e) {
         document.getElementById("sub").textContent = "Erro: " + e.message;
       }
+    }
+
+    // Matriz benefícios: linhas = situação, colunas = tipo, célula = qtd.
+    function matrizTipoStatus(itens) {
+      const el = document.getElementById("tab-tipo-status");
+      if (!itens.length) { el.innerHTML = `<div class="text-slate-400 py-4">Sem benefícios.</div>`; return; }
+      const tipos = [...new Set(itens.map(i => i.tipo_beneficio || "—"))].sort();
+      const situacoes = [...new Set(itens.map(i => i.status_nome || "—"))].sort();
+      const mapa = {}; let totCol = {};
+      itens.forEach(i => {
+        const s = i.status_nome || "—", t = i.tipo_beneficio || "—";
+        mapa[s] = mapa[s] || {}; mapa[s][t] = (mapa[s][t] || 0) + Number(i.qtd || 0);
+        totCol[t] = (totCol[t] || 0) + Number(i.qtd || 0);
+      });
+      const th = `<th class="text-left px-3 py-2 font-semibold text-slate-500">Situação</th>` +
+        tipos.map(t => `<th class="text-right px-3 py-2 font-semibold text-slate-500">${t}</th>`).join("") +
+        `<th class="text-right px-3 py-2 font-semibold text-slate-500">Total</th>`;
+      const linhas = situacoes.map(s => {
+        let totLin = 0;
+        const cels = tipos.map(t => { const v = (mapa[s] && mapa[s][t]) || 0; totLin += v;
+          return `<td class="text-right px-3 py-1.5 ${v?'text-slate-800':'text-slate-300'}">${v || '·'}</td>`; }).join("");
+        return `<tr class="border-t border-slate-100"><td class="px-3 py-1.5 text-slate-700">${s}</td>${cels}<td class="text-right px-3 py-1.5 font-medium">${totLin}</td></tr>`;
+      }).join("");
+      const rodape = `<tr class="border-t-2 border-slate-200 font-medium"><td class="px-3 py-1.5 text-slate-600">Total</td>` +
+        tipos.map(t => `<td class="text-right px-3 py-1.5">${totCol[t] || 0}</td>`).join("") +
+        `<td class="text-right px-3 py-1.5">${Object.values(totCol).reduce((a,b)=>a+b,0)}</td></tr>`;
+      el.innerHTML = `<table class="w-full"><thead class="bg-slate-50"><tr>${th}</tr></thead><tbody>${linhas}${rodape}</tbody></table>`;
     }
 
     montarSeletorSindicato("#seletor-sindicato", carregar);
