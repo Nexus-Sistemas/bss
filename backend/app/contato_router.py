@@ -104,8 +104,8 @@ def editar(
         raise HTTPException(400, "Nome é obrigatório")
     if "@" not in (dados.email or "") or "." not in dados.email.split("@")[-1]:
         raise HTTPException(400, "E-mail inválido")
-    if dados.perfil not in ("empresa", "sindicato"):
-        raise HTTPException(400, "Perfil deve ser 'empresa' ou 'sindicato'")
+    if dados.perfil not in contato_repo.PERFIS_EXTERNOS:
+        raise HTTPException(400, "Perfil deve ser empresa, sindicato ou funerária")
     if contato_repo.email_em_uso(dados.email.strip(), id_contato):
         raise HTTPException(409, "Já existe um usuário com esse e-mail")
     row = contato_repo.atualizar(

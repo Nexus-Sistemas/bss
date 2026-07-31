@@ -25,6 +25,11 @@ def _so_digitos(s: str | None) -> str:
     return re.sub(r"\D", "", s or "")
 
 
+# Perfis EXTERNOS do portal (usuários que não são a equipe interna da BSS).
+# Contato = qualquer um destes. Funerária é o 3º portal (busca global por CPF).
+PERFIS_EXTERNOS = ("empresa", "sindicato", "funeraria")
+
+
 def listar(
     busca: str | None = None,
     ativo: bool | None = None,
@@ -41,13 +46,13 @@ def listar(
     com a contagem de empresas/sindicatos que cada um administra. `busca` casa
     nome, e-mail ou CNPJ de empresa administrada. `perfil` filtra um tipo.
     """
-    # Contato = usuário externo do portal. Empresa e sindicato convivem na mesma
-    # tela; o filtro `perfil` escolhe um. Interno/admin/analista NÃO são contatos.
-    if perfil in ("empresa", "sindicato"):
+    # Contato = usuário externo do portal (empresa/sindicato/funeraria); o filtro
+    # `perfil` escolhe um. Interno/admin/analista NÃO são contatos.
+    if perfil in PERFIS_EXTERNOS:
         where = ["u.perfil = %(perfil)s"]
         params: dict[str, Any] = {"perfil": perfil}
     else:
-        where = ["u.perfil IN ('empresa','sindicato')"]
+        where = ["u.perfil IN ('empresa','sindicato','funeraria')"]
         params = {}
 
     if busca:
@@ -123,7 +128,7 @@ def buscar_detalhe(id_contato: int) -> dict[str, Any] | None:
                (SELECT COUNT(*) FROM bss.usuario_sindicato us
                  WHERE us.id_usuario = u.id AND us.ativo) AS qtd_sindicatos
           FROM bss_users u
-         WHERE u.id = %s AND u.perfil IN ('empresa','sindicato')
+         WHERE u.id = %s AND u.perfil IN ('empresa','sindicato','funeraria')
     """
     with get_pg_connection() as conn:
         with conn.cursor() as cur:
@@ -197,7 +202,7 @@ def atualizar(id_contato: int, nome: str, email: str, telefone: str | None,
                 nome = %s, email = LOWER(%s), telefone = %s,
                 perfil = %s, ativo = %s,
                 preferencias_notificacao = COALESCE(%s::jsonb, preferencias_notificacao)
-             WHERE id = %s AND perfil IN ('empresa','sindicato')
+             WHERE id = %s AND perfil IN ('empresa','sindicato','funeraria')
             """,
             (nome, email, telefone, perfil, ativo,
              json.dumps(preferencias) if preferencias is not None else None,
@@ -214,7 +219,7 @@ def definir_perfil(id_contato: int, perfil: str) -> bool:
     with get_pg_connection() as conn, conn.cursor() as cur:
         cur.execute(
             "UPDATE bss_users SET perfil = %s "
-            "WHERE id = %s AND perfil IN ('empresa','sindicato')",
+            "WHERE id = %s AND perfil IN ('empresa','sindicato','funeraria')",
             (perfil, id_contato),
         )
         mudou = cur.rowcount > 0

@@ -53,6 +53,10 @@ def listar(
         if id_sindicato is not None and id_sindicato not in usuario.sindicatos:
             raise HTTPException(403, "Sindicato fora do escopo")
         ids_sindicato = usuario.sindicatos
+    elif usuario.perfil not in ("admin", "interno", "analista"):
+        # Perfil externo sem escopo nesta lista (ex.: funeraria): default-deny.
+        return {"linhas": [], "total": 0, "pagina": 1,
+                "por_pagina": por_pagina, "paginas": 0}
 
     return boleto_repo.listar(
         busca=busca, status=status, mes_referencia=mes_referencia,

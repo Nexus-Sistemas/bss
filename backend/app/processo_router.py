@@ -65,6 +65,11 @@ def listar(
         if id_sindicato is not None and id_sindicato not in usuario.sindicatos:
             raise HTTPException(403, "Sindicato fora do escopo")
         ids_sindicato = usuario.sindicatos
+    elif usuario.perfil not in processo_repo.PERFIS_INTERNOS:
+        # Perfil externo sem escopo nesta lista (ex.: funeraria): default-deny.
+        # A funerária abre benefício por busca global de CPF, não pela lista.
+        return {"linhas": [], "total": 0, "pagina": 1,
+                "por_pagina": por_pagina, "paginas": 0}
 
     # Marca d'água de leitura só interessa a quem não é da equipe: o sino do
     # analista é derivado de quem falou por último (ver contar_nao_lidas).

@@ -47,7 +47,9 @@ const COLUNAS = [
   { id: "perfil", label: "Perfil", align: "center", sort: null,
     render: c => c.perfil === "sindicato"
       ? pill("sindicato", "bg-purple-100 text-purple-800")
-      : pill("empresa", "bg-sky-100 text-sky-800") },
+      : c.perfil === "funeraria"
+        ? pill("funerária", "bg-rose-100 text-rose-800")
+        : pill("empresa", "bg-sky-100 text-sky-800") },
   { id: "telefone", label: "Telefone", align: "left", sort: null,
     render: c => `<span class="text-xs text-slate-600">${c.telefone || "—"}</span>` },
   { id: "empresas", label: "Empresas", align: "right", sort: "qtd_empresas",

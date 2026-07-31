@@ -80,7 +80,7 @@ function render(c) {
   btnAC.classList.toggle("hidden", !podeAcessar);
 
   // Editar (nome/e-mail/telefone/perfil/ativo/preferências) — só contato externo.
-  const externo = ["empresa", "sindicato"].includes(c.perfil);
+  const externo = ["empresa", "sindicato", "funeraria"].includes(c.perfil);
   document.getElementById("btn-editar").classList.toggle("hidden", !externo);
   // Contagem de sindicatos na aba:
   document.getElementById("rcount-sindicatos").textContent = num(c.qtd_sindicatos || 0);
@@ -253,7 +253,8 @@ function abrirEdicao() {
   document.getElementById("e-nome").value = c.nome || "";
   document.getElementById("e-email").value = ehSemEmail(c.email) ? "" : (c.email || "");
   document.getElementById("e-telefone").value = c.telefone || "";
-  document.getElementById("e-perfil").value = c.perfil === "sindicato" ? "sindicato" : "empresa";
+  document.getElementById("e-perfil").value =
+    ["empresa", "sindicato", "funeraria"].includes(c.perfil) ? c.perfil : "empresa";
   document.getElementById("e-ativo").checked = !!c.ativo;
   const p = c.preferencias_notificacao || {};
   document.getElementById("e-pref-financeiro").checked = !!p.financeiro;

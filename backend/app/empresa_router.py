@@ -55,6 +55,10 @@ def listar(
             return {"linhas": [], "total": 0, "pagina": 1,
                     "por_pagina": por_pagina, "paginas": 0}
         ids_sindicato = usuario.sindicatos
+    elif usuario.perfil not in ("admin", "interno", "analista"):
+        # Perfil externo sem escopo nesta lista (ex.: funeraria): default-deny.
+        return {"linhas": [], "total": 0, "pagina": 1,
+                "por_pagina": por_pagina, "paginas": 0}
 
     return empresa_repo.listar(
         busca=busca, status=status, adimplencia=adimplencia,

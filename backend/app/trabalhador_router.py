@@ -58,6 +58,11 @@ def _escopo_por_perfil(
         if id_sindicato is not None and id_sindicato not in usuario.sindicatos:
             raise HTTPException(403, "Sindicato fora do escopo do usuário")
         ids_sindicato = usuario.sindicatos
+    elif usuario.perfil not in ("admin", "interno", "analista"):
+        # Perfil externo sem escopo definido nesta lista (ex.: funeraria,
+        # contabilidade). Default-deny: não cai no "ver tudo" dos internos.
+        # A funerária terá busca GLOBAL por CPF (endpoint próprio), não a lista.
+        return None
     return id_empresa, ids_empresa, id_sindicato, ids_sindicato
 
 
