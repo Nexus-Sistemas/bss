@@ -209,7 +209,9 @@ async function acessarComo(idAlvo) {
     localStorage.setItem(TOKEN_ORIG_KEY, localStorage.getItem(TOKEN_KEY));
   }
   localStorage.setItem(TOKEN_KEY, dados.access_token);
-  window.location.href = "/app/dashboard-empresa.html";
+  // index.html roteia por perfil (empresa/sindicato/funerária) — não fixar uma
+  // tela, senão impersonar sindicato/funerária cai no dashboard da empresa.
+  window.location.href = "/app/index.html";
 }
 
 // Volta à conta do interno.
