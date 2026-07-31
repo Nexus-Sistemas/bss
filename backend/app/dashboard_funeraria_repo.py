@@ -44,14 +44,17 @@ def serie_mensal() -> list[dict[str, Any]]:
         )
         solicitados = {r["mes"]: r["n"] for r in cur.fetchall()}
 
+        # Finalizados por STATUS (o legado quase não preenche data_finalizacao).
+        # Agrupado pelo mês de ABERTURA (criado_em): "dos solicitados no mês X,
+        # quantos já estão finalizados" — a linha fica sob as barras.
         cur.execute(
             """
-            SELECT to_char(date_trunc('month', data_finalizacao), 'YYYY-MM') AS mes,
+            SELECT to_char(date_trunc('month', criado_em), 'YYYY-MM') AS mes,
                    COUNT(*) AS n
               FROM bss.v_processo
              WHERE tipo_beneficio_codigo = %s
-               AND data_finalizacao IS NOT NULL
-               AND data_finalizacao >= date_trunc('month', CURRENT_DATE) - INTERVAL '11 months'
+               AND status = 'beneficio_finalizado'
+               AND criado_em >= date_trunc('month', CURRENT_DATE) - INTERVAL '11 months'
              GROUP BY 1
             """,
             (_TIPO,),

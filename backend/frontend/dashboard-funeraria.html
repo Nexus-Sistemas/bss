@@ -82,10 +82,12 @@
         const labels = d.meses.map(m => _mesLabel(m.mes));
         const ctx = document.getElementById("chart-mes");
         new Chart(ctx, {
-          type: "bar",
           data: { labels, datasets: [
-            { label: "Solicitados", data: d.meses.map(m=>m.solicitados), backgroundColor: "#6366f1", borderRadius: 4 },
-            { label: "Finalizados", data: d.meses.map(m=>m.finalizados), backgroundColor: "#22c55e", borderRadius: 4 },
+            { type: "bar", label: "Solicitados", data: d.meses.map(m=>m.solicitados),
+              backgroundColor: "#6366f1", borderRadius: 4, order: 2 },
+            { type: "line", label: "Finalizados", data: d.meses.map(m=>m.finalizados),
+              borderColor: "#22c55e", backgroundColor: "#22c55e", borderWidth: 2,
+              tension: 0.3, pointRadius: 3, pointBackgroundColor: "#22c55e", order: 1 },
           ]},
           options: { responsive:true, maintainAspectRatio:false,
             plugins:{ legend:{display:false} },
