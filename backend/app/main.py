@@ -38,6 +38,7 @@ from .documento_router import router as documento_router
 from .tarefa_router import router as tarefa_router
 from .usuario_router import router as usuario_router
 from .dashboard_sindicato_router import router as dashboard_sindicato_router
+from .dashboard_funeraria_router import router as dashboard_funeraria_router
 from .database import get_pg_connection
 
 
@@ -103,6 +104,7 @@ app.include_router(documento_router)
 app.include_router(tarefa_router)
 app.include_router(usuario_router)
 app.include_router(dashboard_sindicato_router)
+app.include_router(dashboard_funeraria_router)
 # PÚBLICO — sem autenticação, por definição (porta de entrada de quem não tem
 # conta). Ver avisos de segurança no topo de autocadastro_router.py.
 app.include_router(autocadastro_router)

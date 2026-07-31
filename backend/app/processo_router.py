@@ -65,9 +65,13 @@ def listar(
         if id_sindicato is not None and id_sindicato not in usuario.sindicatos:
             raise HTTPException(403, "Sindicato fora do escopo")
         ids_sindicato = usuario.sindicatos
+    elif usuario.perfil == "funeraria":
+        # A funerária opera SÓ Acionamento Funeral, mas de forma GLOBAL (qualquer
+        # empresa/sindicato) — ela é a operadora do benefício. Força o tipo e não
+        # aplica escopo de empresa/sindicato.
+        tipo = "acionamento_funeral"
     elif usuario.perfil not in processo_repo.PERFIS_INTERNOS:
-        # Perfil externo sem escopo nesta lista (ex.: funeraria): default-deny.
-        # A funerária abre benefício por busca global de CPF, não pela lista.
+        # Outro perfil externo sem escopo nesta lista: default-deny.
         return {"linhas": [], "total": 0, "pagina": 1,
                 "por_pagina": por_pagina, "paginas": 0}
 
@@ -216,9 +220,19 @@ def _processo_no_escopo(id_processo: int, usuario: UsuarioInfo) -> dict:
     p = processo_repo.buscar_detalhe(id_processo)
     if not p:
         raise HTTPException(404, "Processo não encontrado")
-    if usuario.perfil == "empresa" and p.get("id_empresa") not in usuario.empresas:
-        raise HTTPException(403, "Processo fora do escopo")
-    if usuario.perfil == "sindicato" and p.get("id_sindicato") not in usuario.sindicatos:
+    if usuario.perfil in processo_repo.PERFIS_INTERNOS:
+        return p
+    if usuario.perfil == "empresa":
+        if p.get("id_empresa") not in usuario.empresas:
+            raise HTTPException(403, "Processo fora do escopo")
+    elif usuario.perfil == "sindicato":
+        if p.get("id_sindicato") not in usuario.sindicatos:
+            raise HTTPException(403, "Processo fora do escopo")
+    elif usuario.perfil == "funeraria":
+        # Funerária só vê Acionamento Funeral (global).
+        if p.get("tipo_beneficio_codigo") != "acionamento_funeral":
+            raise HTTPException(403, "Processo fora do escopo")
+    else:
         raise HTTPException(403, "Processo fora do escopo")
     return p
 

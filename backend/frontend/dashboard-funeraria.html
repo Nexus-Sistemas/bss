@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Painel da Funerária — BSS</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+</head>
+<body class="bg-slate-50">
+  <div class="flex h-screen overflow-hidden">
+    <aside id="sidebar" class="w-60 flex-shrink-0"></aside>
+
+    <div class="flex-1 flex flex-col overflow-hidden">
+      <header class="bg-white border-b border-slate-200 flex-shrink-0">
+        <div class="px-6 py-4 flex items-center justify-between">
+          <div>
+            <h1 class="text-xl font-semibold text-slate-800">Painel da Funerária</h1>
+            <p class="text-xs text-slate-500 mt-0.5">Acionamento Funeral</p>
+          </div>
+          <div class="flex items-center gap-3 text-sm">
+            <span id="usuario-info" class="text-slate-500">—</span>
+            <button onclick="logout()" class="text-slate-500 hover:text-slate-800">Sair</button>
+          </div>
+        </div>
+      </header>
+
+      <main class="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+        <!-- Gráfico: solicitados x finalizados por mês -->
+        <div class="bg-white rounded-xl border border-slate-200 p-5">
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="text-sm font-semibold text-slate-700">Benefícios por mês — solicitados × finalizados</h2>
+            <div class="flex items-center gap-4 text-xs text-slate-500">
+              <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-sm" style="background:#6366f1"></span>Solicitados</span>
+              <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-sm" style="background:#22c55e"></span>Finalizados</span>
+            </div>
+          </div>
+          <div class="h-72"><canvas id="chart-mes"></canvas></div>
+        </div>
+
+        <!-- Lista de benefícios recentes -->
+        <div class="bg-white rounded-xl border border-slate-200">
+          <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+            <h2 class="text-sm font-semibold text-slate-700">Benefícios recentes</h2>
+            <a href="/app/processos.html" class="text-xs text-indigo-600 hover:underline">Ver todos</a>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
+                <tr>
+                  <th class="text-left px-5 py-2">Protocolo</th>
+                  <th class="text-left px-3 py-2">Beneficiário / Trabalhador</th>
+                  <th class="text-left px-3 py-2">Empresa</th>
+                  <th class="text-left px-3 py-2">Situação</th>
+                  <th class="text-left px-3 py-2">Aberto em</th>
+                </tr>
+              </thead>
+              <tbody id="recentes" class="divide-y divide-slate-100">
+                <tr><td colspan="5" class="px-5 py-6 text-slate-400">Carregando…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script src="/app/js/api.js"></script>
+  <script src="/app/js/sidebar.js"></script>
+  <script>renderizarSidebar("dashboard");</script>
+  <script>
+    const u = exigirLogin();
+    if (u) document.getElementById("usuario-info").textContent = `${u.nome} (${u.perfil})`;
+
+    function _esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+    function _mesLabel(m){ const [a,mm]=m.split("-"); return `${mm}/${a.slice(2)}`; }
+    function _data(iso){ if(!iso)return "—"; const d=new Date(iso); return isNaN(d)?"—":d.toLocaleDateString("pt-BR"); }
+
+    async function carregarGrafico() {
+      try {
+        const d = await apiFetch("/dashboard-funeraria/serie-mensal");
+        const labels = d.meses.map(m => _mesLabel(m.mes));
+        const ctx = document.getElementById("chart-mes");
+        new Chart(ctx, {
+          type: "bar",
+          data: { labels, datasets: [
+            { label: "Solicitados", data: d.meses.map(m=>m.solicitados), backgroundColor: "#6366f1", borderRadius: 4 },
+            { label: "Finalizados", data: d.meses.map(m=>m.finalizados), backgroundColor: "#22c55e", borderRadius: 4 },
+          ]},
+          options: { responsive:true, maintainAspectRatio:false,
+            plugins:{ legend:{display:false} },
+            scales:{ y:{ beginAtZero:true, ticks:{ precision:0 } } } }
+        });
+      } catch (e) {
+        document.getElementById("chart-mes").parentElement.innerHTML =
+          `<div class="text-sm text-rose-600 py-8 text-center">${_esc(e.message)}</div>`;
+      }
+    }
+
+    async function carregarRecentes() {
+      const tb = document.getElementById("recentes");
+      try {
+        const d = await apiFetch("/processos?por_pagina=12&ordem=criado_em&desc=true");
+        if (!d.linhas || !d.linhas.length) {
+          tb.innerHTML = `<tr><td colspan="5" class="px-5 py-6 text-slate-400">Nenhum benefício.</td></tr>`;
+          return;
+        }
+        tb.innerHTML = d.linhas.map(p => `
+          <tr class="hover:bg-slate-50 cursor-pointer" onclick="location.href='/app/processo-detalhe.html?id=${p.id}'">
+            <td class="px-5 py-2 font-mono text-xs text-slate-600">${_esc(p.protocolo || "#"+p.id)}</td>
+            <td class="px-3 py-2 text-slate-800">${_esc(p.beneficiario_nome || p.trabalhador_nome || "—")}</td>
+            <td class="px-3 py-2 text-slate-600">${_esc(p.empresa || "—")}</td>
+            <td class="px-3 py-2">${_esc(p.status_nome || p.status || "—")}</td>
+            <td class="px-3 py-2 text-slate-500 whitespace-nowrap">${_data(p.criado_em)}</td>
+          </tr>`).join("");
+      } catch (e) {
+        tb.innerHTML = `<tr><td colspan="5" class="px-5 py-6 text-rose-600">${_esc(e.message)}</td></tr>`;
+      }
+    }
+
+    carregarGrafico();
+    carregarRecentes();
+  </script>
+</body>
+</html>
