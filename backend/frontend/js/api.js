@@ -209,9 +209,19 @@ async function acessarComo(idAlvo) {
     localStorage.setItem(TOKEN_ORIG_KEY, localStorage.getItem(TOKEN_KEY));
   }
   localStorage.setItem(TOKEN_KEY, dados.access_token);
-  // index.html roteia por perfil (empresa/sindicato/funerária) — não fixar uma
-  // tela, senão impersonar sindicato/funerária cai no dashboard da empresa.
-  window.location.href = "/app/index.html";
+  // Vai DIRETO pro dashboard do perfil impersonado (lê o perfil do token novo).
+  // Não passa pelo index.html nem fixa uma tela — senão sindicato/funerária caem
+  // no dashboard interno (403 "restrito à equipe") ou no da empresa.
+  let destino = "/app/dashboard.html";
+  try {
+    const p = JSON.parse(atob(dados.access_token.split(".")[1]));
+    destino = ({
+      empresa:   "/app/dashboard-empresa.html",
+      sindicato: "/app/dashboard-sindicato.html",
+      funeraria: "/app/dashboard-funeraria.html",
+    })[p.perfil] || "/app/dashboard.html";
+  } catch (_) { /* usa o fallback */ }
+  window.location.href = destino;
 }
 
 // Volta à conta do interno.
