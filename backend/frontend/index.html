@@ -20,9 +20,12 @@
         window.location.replace("/app/login.html");
         return;
       }
-      window.location.replace(
-        u.perfil === "empresa" ? "/app/dashboard-empresa.html" : "/app/dashboard.html"
-      );
+      const destino = {
+        empresa:   "/app/dashboard-empresa.html",
+        sindicato: "/app/dashboard-sindicato.html",
+        funeraria: "/app/processos.html",   // funerária só vê Benefícios
+      }[u.perfil] || "/app/dashboard.html";
+      window.location.replace(destino);
     })();
   </script>
 </head>

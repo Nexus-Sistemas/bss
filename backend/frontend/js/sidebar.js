@@ -44,6 +44,7 @@ const MENU = [
       // A empresa tem dashboard próprio: o interno mostra faturamento e a
       // carteira inteira, que ela não pode ver.
       { slug: "dashboard", label: "Dashboard", href: "/app/dashboard.html",
+        ocultarPerfis: ["funeraria"],   // funerária só vê Benefícios
         hrefPorPerfil: { empresa: "/app/dashboard-empresa.html",
                          sindicato: "/app/dashboard-sindicato.html" },
         icone: '<path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"/>' },
@@ -53,8 +54,10 @@ const MENU = [
     grupo: "Cadastros",
     itens: [
       { slug: "empresas", label: "Empresas", href: "/app/empresas.html",
+        ocultarPerfis: ["funeraria"],
         icone: '<path fill-rule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12h1a1 1 0 110 2H3a1 1 0 110-2h1V4zm3 1h2v2H7V5zm2 4H7v2h2V9zm2-4h2v2h-2V5zm2 4h-2v2h2V9zm-6 4h2v4H7v-4zm4 0h2v4h-2v-4z" clip-rule="evenodd"/>' },
       { slug: "trabalhadores", label: "Trabalhadores", href: "/app/trabalhadores.html",
+        ocultarPerfis: ["funeraria"],
         icone: '<path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/>' },
       // Sindicatos: internos + o próprio sindicato. Empresa não entra —
       // /{id}/detalhe devolve parametros_boleto (tarifas, banco). Ver o
@@ -81,6 +84,7 @@ const MENU = [
       { slug: "processos", label: "Benefícios", href: "/app/processos.html",
         icone: '<path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/><path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd"/>' },
       { slug: "boletos", label: "Boletos", href: "/app/boletos.html",
+        ocultarPerfis: ["funeraria"],
         icone: '<path fill-rule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm3 1h6v2H7V5zm6 4H7v2h6V9zm-2 4H7v2h4v-2z" clip-rule="evenodd"/>' },
       // Contas a pagar — operação financeira interna (pagamento do benefício
       // ao trabalhador). A empresa cliente não vê. Ver docs/CONTAS_PAGAR.md.
@@ -109,8 +113,13 @@ const MENU = [
   },
 ];
 
-/** Item visível pro perfil? Sem `perfis` declarado = visível pra todos. */
+/** Item visível pro perfil?
+ *  - `perfis`       (allowlist): se declarado, só esses perfis veem.
+ *  - `ocultarPerfis` (blocklist): esconde de perfis específicos, mantendo o
+ *     item visível pra todos os outros (usado pra funerária, que só vê Benefícios).
+ *  Sem nenhum dos dois = visível pra todos. */
 function _itemVisivel(item, perfil) {
+  if (item.ocultarPerfis && item.ocultarPerfis.includes(perfil)) return false;
   if (!item.perfis) return true;
   return item.perfis.includes(perfil);
 }
