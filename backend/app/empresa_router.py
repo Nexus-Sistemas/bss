@@ -3,6 +3,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 
 from .auth import UsuarioInfo, usuario_logado
 from . import empresa_repo
@@ -11,15 +12,23 @@ from . import empresa_repo
 router = APIRouter(prefix="/empresas", tags=["empresas"])
 
 
+_PERFIS_INTERNOS = ("admin", "interno", "analista")
+
+
 def _exigir_empresa_no_escopo(usuario: UsuarioInfo, id_empresa: int) -> None:
     """RLS de detalhe: empresa vê as suas; sindicato vê as que têm trabalhador
-    ativo nos seus sindicatos; internos veem tudo."""
+    ativo nos seus sindicatos; internos veem tudo; outros perfis (ex.: funerária)
+    são barrados por padrão."""
+    if usuario.perfil in _PERFIS_INTERNOS:
+        return
     if usuario.perfil == "empresa":
         if id_empresa not in usuario.empresas:
             raise HTTPException(403, "Empresa fora do escopo")
     elif usuario.perfil == "sindicato":
         if not empresa_repo.empresa_no_escopo_sindicato(id_empresa, usuario.sindicatos):
             raise HTTPException(403, "Empresa fora do escopo")
+    else:
+        raise HTTPException(403, "Acesso restrito")
 
 
 @router.get("")
@@ -77,6 +86,52 @@ def detalhe_completo(
     row = empresa_repo.buscar_detalhe(id_empresa)
     if not row:
         raise HTTPException(404, "Empresa não encontrada")
+    return row
+
+
+class EmpresaEditar(BaseModel):
+    razao_social: str
+    nome_fantasia: str | None = None
+    cnpj: str | None = None
+    logradouro: str | None = None
+    numero: str | None = None
+    complemento: str | None = None
+    bairro: str | None = None
+    cidade: str | None = None
+    uf: str | None = None
+    cep: str | None = None
+    telefone: str | None = None
+    status: str | None = None
+
+
+@router.put("/{id_empresa}")
+def editar(
+    id_empresa: int,
+    dados: EmpresaEditar,
+    usuario: Annotated[UsuarioInfo, Depends(usuario_logado)],
+):
+    """Edita o cadastro da empresa. Interno ou sindicato no escopo."""
+    if usuario.perfil in _PERFIS_INTERNOS:
+        pass
+    elif usuario.perfil == "sindicato":
+        if not empresa_repo.empresa_no_escopo_sindicato(id_empresa, usuario.sindicatos):
+            raise HTTPException(403, "Empresa fora do escopo")
+    else:
+        raise HTTPException(403, "Sem permissão para editar empresa")
+
+    if not (dados.razao_social or "").strip():
+        raise HTTPException(400, "Razão social é obrigatória")
+    if not empresa_repo.buscar_por_id(id_empresa):
+        raise HTTPException(404, "Empresa não encontrada")
+
+    campos = dados.model_dump()
+    campos["razao_social"] = dados.razao_social.strip()
+    if campos.get("cnpj"):
+        campos["cnpj"] = "".join(c for c in campos["cnpj"] if c.isdigit())
+    if campos.get("uf"):
+        campos["uf"] = campos["uf"].strip().upper()[:2]
+    row = empresa_repo.atualizar(id_empresa, campos)
+    row["aviso"] = "Campos enviados pela sync podem ser sobrescritos no próximo ciclo."
     return row
 
 

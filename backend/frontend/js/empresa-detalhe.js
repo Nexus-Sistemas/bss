@@ -78,10 +78,66 @@ function falhar(msg) {
   erro.textContent = msg;
 }
 
+/* ------------------------------ edição ---------------------------------- */
+
+function abrirEdicaoEmpresa() {
+  const e = _empresa;
+  if (!e) return;
+  const set = (id, v) => { document.getElementById(id).value = v || ""; };
+  set("ee-razao", e.razao_social);
+  set("ee-fantasia", e.nome_fantasia);
+  set("ee-cnpj", e.cnpj);
+  set("ee-logradouro", e.logradouro);
+  set("ee-numero", e.numero);
+  set("ee-complemento", e.complemento);
+  set("ee-bairro", e.bairro);
+  set("ee-cidade", e.cidade);
+  set("ee-uf", e.uf);
+  set("ee-cep", e.cep);
+  set("ee-telefone", e.telefone);
+  document.getElementById("ee-status").value = e.status || "ativa";
+  document.getElementById("ee-msg").textContent = "";
+  document.getElementById("modal-emp").classList.remove("hidden");
+}
+
+function fecharEdicaoEmpresa() {
+  document.getElementById("modal-emp").classList.add("hidden");
+}
+
+async function salvarEdicaoEmpresa() {
+  const btn = document.getElementById("btn-salvar-emp");
+  const msg = document.getElementById("ee-msg");
+  const g = (id) => document.getElementById(id).value.trim();
+  const corpo = {
+    razao_social: g("ee-razao"), nome_fantasia: g("ee-fantasia") || null,
+    cnpj: g("ee-cnpj") || null, logradouro: g("ee-logradouro") || null,
+    numero: g("ee-numero") || null, complemento: g("ee-complemento") || null,
+    bairro: g("ee-bairro") || null, cidade: g("ee-cidade") || null,
+    uf: g("ee-uf") || null, cep: g("ee-cep") || null,
+    telefone: g("ee-telefone") || null, status: document.getElementById("ee-status").value,
+  };
+  if (!corpo.razao_social) { msg.textContent = "Informe a razão social."; msg.className = "text-xs text-rose-600"; return; }
+  btn.disabled = true; msg.textContent = "Salvando…"; msg.className = "text-xs text-slate-400";
+  try {
+    await apiFetch(`/empresas/${getId()}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(corpo),
+    });
+    fecharEdicaoEmpresa();
+    await carregar();
+  } catch (e) {
+    msg.textContent = e.message; msg.className = "text-xs text-rose-600";
+  } finally { btn.disabled = false; }
+}
+
 function render(e) {
   document.getElementById("loading").classList.add("hidden");
   document.getElementById("conteudo").classList.remove("hidden");
   document.getElementById("titulo").innerHTML = e.razao_social || "Empresa";
+
+  // Editar: interno ou sindicato (backend revalida escopo).
+  const podeEditar = ["admin", "interno", "analista", "sindicato"].includes(u?.perfil);
+  document.getElementById("btn-editar-empresa").classList.toggle("hidden", !podeEditar);
 
   const endereco = montarEndereco(e);
   const enderecoBloco = `

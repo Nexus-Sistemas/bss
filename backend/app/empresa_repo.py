@@ -124,6 +124,34 @@ def listar(
     return {"linhas": linhas, "total": total, "pagina": pagina, "por_pagina": por_pagina, "paginas": paginas}
 
 
+_CAMPOS_EDITAVEIS = (
+    "razao_social", "nome_fantasia", "cnpj", "logradouro", "numero",
+    "complemento", "bairro", "cidade", "uf", "cep", "telefone", "status",
+)
+
+
+def atualizar(id_empresa: int, campos: dict[str, Any]) -> dict[str, Any] | None:
+    """
+    Edita os campos CADASTRAIS da empresa. Não toca em caches/derivados
+    (regularidade, adimplência, qtd_*). LEMBRE: a sync é a dona — o que ela
+    enviar sobrescreve estes campos no próximo ciclo (decisão do Mauro).
+    """
+    sets, params = [], {}
+    for c in _CAMPOS_EDITAVEIS:
+        if c in campos:
+            sets.append(f"{c} = %({c})s")
+            params[c] = campos[c]
+    if not sets:
+        return buscar_detalhe(id_empresa)
+    params["id"] = id_empresa
+    sql = (f"UPDATE bss.empresa SET {', '.join(sets)}, atualizado_em = NOW() "
+           f"WHERE id = %(id)s")
+    with get_pg_connection() as conn, conn.cursor() as cur:
+        cur.execute(sql, params)
+        conn.commit()
+    return buscar_detalhe(id_empresa)
+
+
 def empresa_no_escopo_sindicato(id_empresa: int, ids_sindicato: list[int]) -> bool:
     """
     True se a empresa tem trabalhador ativo filiado a algum dos sindicatos.
