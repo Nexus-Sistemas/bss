@@ -12,6 +12,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 
 from .auth import UsuarioInfo, usuario_logado
 from . import trabalhador_repo
@@ -304,6 +305,61 @@ def detalhe_completo(
         row["titular"] = None
 
     return row
+
+
+class TrabalhadorEditar(BaseModel):
+    nome_completo: str
+    cpf: str | None = None
+    data_nascimento: str | None = None
+    data_admissao: str | None = None
+    data_demissao: str | None = None
+    telefone: str | None = None
+    email: str | None = None
+    logradouro: str | None = None
+    numero: str | None = None
+    complemento: str | None = None
+    bairro: str | None = None
+    cidade: str | None = None
+    uf: str | None = None
+    cep: str | None = None
+    situacao: str | None = None
+    genero: str | None = None
+    nome_mae: str | None = None
+    rg: str | None = None
+
+
+@router.put("/{id_trabalhador}")
+def editar(
+    id_trabalhador: int,
+    dados: TrabalhadorEditar,
+    usuario: Annotated[UsuarioInfo, Depends(usuario_logado)],
+):
+    """Edita o cadastro do trabalhador. Interno, ou empresa/sindicato no escopo."""
+    row = trabalhador_repo.buscar_por_id(id_trabalhador)
+    if not row:
+        raise HTTPException(404, "Trabalhador não encontrado")
+
+    if usuario.perfil in ("admin", "interno", "analista"):
+        pass
+    elif usuario.perfil == "empresa":
+        if row.get("id_empresa_atual") not in usuario.empresas:
+            raise HTTPException(403, "Trabalhador fora do escopo")
+    elif usuario.perfil == "sindicato":
+        if row.get("id_sindicato_atual") not in usuario.sindicatos:
+            raise HTTPException(403, "Trabalhador fora do escopo")
+    else:
+        raise HTTPException(403, "Sem permissão para editar trabalhador")
+
+    if not (dados.nome_completo or "").strip():
+        raise HTTPException(400, "Nome é obrigatório")
+    campos = dados.model_dump()
+    campos["nome_completo"] = dados.nome_completo.strip()
+    if campos.get("cpf"):
+        campos["cpf"] = "".join(c for c in campos["cpf"] if c.isdigit())
+    if campos.get("uf"):
+        campos["uf"] = campos["uf"].strip().upper()[:2]
+    atualizado = trabalhador_repo.atualizar(id_trabalhador, campos)
+    return atualizado
 
 
 @router.get("/{id_trabalhador}")

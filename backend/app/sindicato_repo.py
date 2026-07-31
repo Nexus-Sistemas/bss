@@ -179,6 +179,34 @@ def buscar_por_id(id_sindicato: int) -> dict[str, object] | None:
             return cur.fetchone()
 
 
+_CAMPOS_EDITAVEIS = (
+    "razao_social", "nome_fantasia", "cnpj", "federacao", "categoria",
+    "presidente", "vice_presidente", "uf_abrangencia", "contrato_bss",
+    "telefone", "email", "em_atendimento", "ativo",
+)
+
+
+def atualizar(id_sindicato: int, campos: dict[str, Any]) -> dict[str, Any] | None:
+    """
+    Edita o cadastro do sindicato (não toca em caches qtd_*). A sync é a dona —
+    o que ela envia sobrescreve no próximo ciclo.
+    """
+    sets, params = [], {}
+    for c in _CAMPOS_EDITAVEIS:
+        if c in campos:
+            sets.append(f"{c} = %({c})s")
+            params[c] = campos[c]
+    if not sets:
+        return buscar_detalhe(id_sindicato)
+    params["id"] = id_sindicato
+    sql = (f"UPDATE bss.sindicato SET {', '.join(sets)}, atualizado_em = NOW() "
+           f"WHERE id = %(id)s")
+    with get_pg_connection() as conn, conn.cursor() as cur:
+        cur.execute(sql, params)
+        conn.commit()
+    return buscar_detalhe(id_sindicato)
+
+
 def buscar_detalhe(id_sindicato: int) -> dict[str, Any] | None:
     """
     Detalhe completo do sindicato + JOIN com parametros_boleto + agregado

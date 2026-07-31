@@ -71,6 +71,10 @@ function render(s) {
 
   document.getElementById("titulo").innerHTML = `${s.razao_social || "Sindicato"}`;
 
+  // Editar: interno ou o próprio sindicato (backend revalida escopo).
+  const podeEditar = ["admin", "interno", "analista", "sindicato"].includes(u?.perfil);
+  document.getElementById("btn-editar-sind").classList.toggle("hidden", !podeEditar);
+
   // Aba: Informação Básica (2 colunas alternando, igual o print legado)
   const tipoBadge = s.tipo_sindicato_resolvido === "FEMACO"
     ? `<span class="inline-block px-2 py-0.5 rounded text-xs bg-amber-100 text-amber-800">FEMACO</span>`
@@ -155,6 +159,53 @@ function trocarAba(qual) {
   document.getElementById("tab-entrega").className  = qual === "entrega" ? ativaCls : inativaCls;
   document.getElementById("aba-basica").classList.toggle("hidden",  qual !== "basica");
   document.getElementById("aba-entrega").classList.toggle("hidden", qual !== "entrega");
+}
+
+/* ------------------------------ edição ---------------------------------- */
+
+function abrirEdicaoSind() {
+  const s = _sindicato; if (!s) return;
+  const set = (id, v) => { document.getElementById(id).value = v || ""; };
+  set("es-razao", s.razao_social); set("es-cnpj", s.cnpj);
+  set("es-fantasia", s.nome_fantasia); set("es-categoria", s.categoria);
+  set("es-uf", s.uf_abrangencia); set("es-federacao", s.federacao);
+  set("es-contrato", s.contrato_bss); set("es-presidente", s.presidente);
+  set("es-vice", s.vice_presidente); set("es-telefone", s.telefone);
+  set("es-email", s.email);
+  document.getElementById("es-atendimento").checked = !!s.em_atendimento;
+  document.getElementById("es-ativo").checked = !!s.ativo;
+  document.getElementById("es-msg").textContent = "";
+  document.getElementById("modal-sind").classList.remove("hidden");
+}
+
+function fecharEdicaoSind() { document.getElementById("modal-sind").classList.add("hidden"); }
+
+async function salvarEdicaoSind() {
+  const btn = document.getElementById("btn-salvar-sind");
+  const msg = document.getElementById("es-msg");
+  const g = (id) => document.getElementById(id).value.trim();
+  const corpo = {
+    razao_social: g("es-razao"), nome_fantasia: g("es-fantasia") || null,
+    cnpj: g("es-cnpj") || null, federacao: g("es-federacao") || null,
+    categoria: g("es-categoria") || null, presidente: g("es-presidente") || null,
+    vice_presidente: g("es-vice") || null, uf_abrangencia: g("es-uf") || null,
+    contrato_bss: g("es-contrato") || null, telefone: g("es-telefone") || null,
+    email: g("es-email") || null,
+    em_atendimento: document.getElementById("es-atendimento").checked,
+    ativo: document.getElementById("es-ativo").checked,
+  };
+  if (!corpo.razao_social) { msg.textContent = "Informe a razão social."; msg.className = "text-xs text-rose-600"; return; }
+  btn.disabled = true; msg.textContent = "Salvando…"; msg.className = "text-xs text-slate-400";
+  try {
+    await apiFetch(`/sindicatos/${getIdFromUrl()}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(corpo),
+    });
+    fecharEdicaoSind();
+    await carregar();
+  } catch (e) {
+    msg.textContent = e.message; msg.className = "text-xs text-rose-600";
+  } finally { btn.disabled = false; }
 }
 
 carregar();

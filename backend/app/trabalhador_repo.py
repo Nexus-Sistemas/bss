@@ -222,6 +222,35 @@ def listar_tudo(
             return list(cur.fetchall())
 
 
+_CAMPOS_EDITAVEIS = (
+    "nome_completo", "cpf", "data_nascimento", "data_admissao", "data_demissao",
+    "telefone", "email", "logradouro", "numero", "complemento", "bairro",
+    "cidade", "uf", "cep", "situacao", "genero", "nome_mae", "rg",
+)
+
+
+def atualizar(id_trabalhador: int, campos: dict[str, Any]) -> dict[str, Any] | None:
+    """
+    Edita os campos cadastrais do trabalhador (não toca em vínculos atuais nem
+    caches). A sync é a dona — o que ela envia sobrescreve no próximo ciclo.
+    Datas chegam como 'YYYY-MM-DD' (string) ou None.
+    """
+    sets, params = [], {}
+    for c in _CAMPOS_EDITAVEIS:
+        if c in campos:
+            sets.append(f"{c} = %({c})s")
+            params[c] = campos[c] or None
+    if not sets:
+        return buscar_por_id(id_trabalhador)
+    params["id"] = id_trabalhador
+    sql = (f"UPDATE bss.trabalhador SET {', '.join(sets)}, atualizado_em = NOW() "
+           f"WHERE id = %(id)s")
+    with get_pg_connection() as conn, conn.cursor() as cur:
+        cur.execute(sql, params)
+        conn.commit()
+    return buscar_por_id(id_trabalhador)
+
+
 def buscar_por_id(id: int) -> dict[str, Any] | None:
     """Pega um trabalhador completo (com endereço, etc.)"""
     sql = """
@@ -318,6 +347,7 @@ def buscar_detalhe(id: int) -> dict[str, Any] | None:
             t.situacao, t.data_nascimento, t.data_admissao, t.data_demissao,
             t.ultimo_pagamento_em, t.mes_ultimo_vinculo,
             t.telefone, t.email,
+            t.genero, t.nome_mae, t.rg,
             t.logradouro, t.numero, t.complemento, t.bairro,
             t.cidade, t.uf, t.cep,
             t.qtd_dependentes_ativos,

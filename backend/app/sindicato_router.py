@@ -23,6 +23,7 @@ menu e não vaza nada.
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 
 from .auth import UsuarioInfo, usuario_logado
 from . import sindicato_repo
@@ -80,6 +81,48 @@ def detalhe(
     if usuario.perfil == "sindicato" and id_sindicato not in usuario.sindicatos:
         raise HTTPException(403, "Sindicato fora do escopo")
     return row
+
+
+class SindicatoEditar(BaseModel):
+    razao_social: str
+    nome_fantasia: str | None = None
+    cnpj: str | None = None
+    federacao: str | None = None
+    categoria: str | None = None
+    presidente: str | None = None
+    vice_presidente: str | None = None
+    uf_abrangencia: str | None = None
+    contrato_bss: str | None = None
+    telefone: str | None = None
+    email: str | None = None
+    em_atendimento: bool = True
+    ativo: bool = True
+
+
+@router.put("/{id_sindicato}")
+def editar(
+    id_sindicato: int,
+    dados: SindicatoEditar,
+    usuario: Annotated[UsuarioInfo, Depends(usuario_logado)],
+):
+    """Edita o cadastro do sindicato. Interno, ou o próprio sindicato no escopo."""
+    _bloquear_externos(usuario)
+    if usuario.perfil == "sindicato" and id_sindicato not in usuario.sindicatos:
+        raise HTTPException(403, "Sindicato fora do escopo")
+    if usuario.perfil not in ("admin", "interno", "analista", "sindicato"):
+        raise HTTPException(403, "Sem permissão para editar sindicato")
+    if not (dados.razao_social or "").strip():
+        raise HTTPException(400, "Razão social é obrigatória")
+    if not sindicato_repo.buscar_por_id(id_sindicato):
+        raise HTTPException(404, "Sindicato não encontrado")
+
+    campos = dados.model_dump()
+    campos["razao_social"] = dados.razao_social.strip()
+    if campos.get("cnpj"):
+        campos["cnpj"] = "".join(c for c in campos["cnpj"] if c.isdigit())
+    if campos.get("uf_abrangencia"):
+        campos["uf_abrangencia"] = campos["uf_abrangencia"].strip().upper()[:2]
+    return sindicato_repo.atualizar(id_sindicato, campos)
 
 
 @router.get("/{id_sindicato}/detalhe")

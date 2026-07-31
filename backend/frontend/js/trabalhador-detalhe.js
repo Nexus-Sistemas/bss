@@ -83,11 +83,67 @@ function falhar(msg) {
   erro.textContent = msg;
 }
 
+/* ------------------------------ edição ---------------------------------- */
+
+function _dtInput(v) { return v ? String(v).slice(0, 10) : ""; }   // ISO → YYYY-MM-DD
+
+function abrirEdicaoTrab() {
+  const t = _trab; if (!t) return;
+  const set = (id, v) => { document.getElementById(id).value = v || ""; };
+  set("et-nome", t.nome_completo);
+  set("et-cpf", t.cpf);
+  document.getElementById("et-situacao").value = t.situacao || "ativo";
+  document.getElementById("et-nasc").value = _dtInput(t.data_nascimento);
+  document.getElementById("et-admissao").value = _dtInput(t.data_admissao);
+  set("et-genero", t.genero); set("et-nomemae", t.nome_mae); set("et-rg", t.rg);
+  set("et-telefone", t.telefone); set("et-email", t.email);
+  set("et-logradouro", t.logradouro); set("et-numero", t.numero);
+  set("et-bairro", t.bairro); set("et-cidade", t.cidade);
+  set("et-uf", t.uf); set("et-cep", t.cep);
+  document.getElementById("et-msg").textContent = "";
+  document.getElementById("modal-trab").classList.remove("hidden");
+}
+
+function fecharEdicaoTrab() { document.getElementById("modal-trab").classList.add("hidden"); }
+
+async function salvarEdicaoTrab() {
+  const btn = document.getElementById("btn-salvar-trab");
+  const msg = document.getElementById("et-msg");
+  const g = (id) => document.getElementById(id).value.trim();
+  const corpo = {
+    nome_completo: g("et-nome"), cpf: g("et-cpf") || null,
+    situacao: document.getElementById("et-situacao").value,
+    data_nascimento: document.getElementById("et-nasc").value || null,
+    data_admissao: document.getElementById("et-admissao").value || null,
+    genero: g("et-genero") || null, nome_mae: g("et-nomemae") || null, rg: g("et-rg") || null,
+    telefone: g("et-telefone") || null, email: g("et-email") || null,
+    logradouro: g("et-logradouro") || null, numero: g("et-numero") || null,
+    bairro: g("et-bairro") || null, cidade: g("et-cidade") || null,
+    uf: g("et-uf") || null, cep: g("et-cep") || null,
+  };
+  if (!corpo.nome_completo) { msg.textContent = "Informe o nome."; msg.className = "text-xs text-rose-600"; return; }
+  btn.disabled = true; msg.textContent = "Salvando…"; msg.className = "text-xs text-slate-400";
+  try {
+    await apiFetch(`/trabalhadores/${getIdFromUrl()}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(corpo),
+    });
+    fecharEdicaoTrab();
+    await carregar();
+  } catch (e) {
+    msg.textContent = e.message; msg.className = "text-xs text-rose-600";
+  } finally { btn.disabled = false; }
+}
+
 function render(t) {
   document.getElementById("loading").classList.add("hidden");
   document.getElementById("conteudo").classList.remove("hidden");
 
   document.getElementById("titulo").innerHTML = t.nome_completo || "Trabalhador";
+
+  // Editar: interno, ou empresa/sindicato (backend revalida escopo).
+  const podeEditar = ["admin", "interno", "analista", "empresa", "sindicato"].includes(u?.perfil);
+  document.getElementById("btn-editar-trab").classList.toggle("hidden", !podeEditar);
 
   const ehDependente = t.titularidade === "dependente";
 
