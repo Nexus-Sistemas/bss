@@ -274,3 +274,102 @@ function exigirLogin() {
   }
   return u;
 }
+
+
+/* === Tema (claro / escuro / sistema) — replica o ThemeSwitch do nexus-ui === */
+
+const TEMA_KEY = "bss_tema";   // 'claro' | 'escuro' | 'sistema'
+
+function _temaSalvo() { return localStorage.getItem(TEMA_KEY) || "sistema"; }
+
+function _temaEfetivo(pref) {
+  if (pref === "sistema") {
+    return (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches)
+      ? "escuro" : "claro";
+  }
+  return pref;
+}
+
+function _aplicarTema() {
+  document.documentElement.classList.toggle("dark", _temaEfetivo(_temaSalvo()) === "escuro");
+}
+
+function definirTema(pref) {
+  localStorage.setItem(TEMA_KEY, pref);
+  _aplicarTema();
+  _atualizarThemeSwitch();
+}
+
+// CSS de dark injetado uma vez. O app é Tailwind "light"; aqui remapeamos as
+// superfícies mais comuns sob html.dark. 1ª versão — refinável pros tokens nexus.
+function _injetarCssDark() {
+  if (document.getElementById("bss-css-dark")) return;
+  const st = document.createElement("style");
+  st.id = "bss-css-dark";
+  st.textContent = `
+    html.dark body, html.dark .bg-slate-50, html.dark .bg-gray-50 { background-color:#0f172a; }
+    html.dark .bg-white { background-color:#1e293b; }
+    html.dark .bg-slate-100, html.dark .bg-gray-100 { background-color:#334155; }
+    html.dark .text-slate-900, html.dark .text-slate-800, html.dark .text-gray-900, html.dark .text-gray-800 { color:#e2e8f0; }
+    html.dark .text-slate-700, html.dark .text-slate-600, html.dark .text-gray-700, html.dark .text-gray-600 { color:#cbd5e1; }
+    html.dark .text-slate-500, html.dark .text-slate-400, html.dark .text-gray-500, html.dark .text-gray-400 { color:#94a3b8; }
+    html.dark .border-slate-200, html.dark .border-slate-100, html.dark .border-slate-300,
+      html.dark .border-gray-200, html.dark .border-gray-100 { border-color:#334155; }
+    html.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+      html.dark .divide-slate-200 > :not([hidden]) ~ :not([hidden]) { border-color:#334155; }
+    html.dark input, html.dark select, html.dark textarea { background-color:#1e293b; color:#e2e8f0; border-color:#334155; }
+    html.dark .hover\\:bg-slate-50:hover, html.dark .hover\\:bg-slate-100:hover,
+      html.dark .hover\\:bg-gray-50:hover, html.dark .hover\\:bg-gray-100:hover { background-color:#334155; }
+  `;
+  document.head.appendChild(st);
+}
+
+const _ICONES_TEMA = {
+  escuro: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>',
+  sistema: '<rect x="3" y="4" width="18" height="12" rx="1" stroke-width="2"/><path stroke-width="2" stroke-linecap="round" d="M8 20h8M12 16v4"/>',
+  claro: '<circle cx="12" cy="12" r="4" stroke-width="2"/><path stroke-width="2" stroke-linecap="round" d="M12 3v1M12 20v1M4.9 4.9l.7.7M18.4 18.4l.7.7M3 12h1M20 12h1M4.9 19.1l.7-.7M18.4 5.6l.7-.7"/>',
+};
+
+function _atualizarThemeSwitch() {
+  const pref = _temaSalvo();
+  document.querySelectorAll("#theme-switch .ts-btn").forEach((b) => {
+    const ativo = b.dataset.tema === pref;
+    b.classList.toggle("bg-white", ativo);
+    b.classList.toggle("text-indigo-600", ativo);
+    b.classList.toggle("shadow-sm", ativo);
+  });
+}
+
+// Insere os 3 botões no topo (ao lado do "Nome (perfil)"), em qualquer tela que
+// tenha o cabeçalho padrão (#usuario-info). Sem editar página por página.
+function _montarThemeSwitch() {
+  const info = document.getElementById("usuario-info");
+  if (!info || document.getElementById("theme-switch")) return;
+  const box = document.createElement("div");
+  box.id = "theme-switch";
+  box.setAttribute("role", "group");
+  box.setAttribute("aria-label", "Tema");
+  box.className = "inline-flex items-center rounded-lg border border-slate-200 bg-slate-50 p-0.5 mr-1";
+  box.innerHTML = ["escuro", "sistema", "claro"].map((t) => `
+    <button type="button" data-tema="${t}" title="${t[0].toUpperCase() + t.slice(1)}"
+            onclick="definirTema('${t}')"
+            class="ts-btn p-1.5 rounded-md text-slate-500 hover:text-slate-700">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">${_ICONES_TEMA[t]}</svg>
+    </button>`).join("");
+  info.parentNode.insertBefore(box, info);
+  _atualizarThemeSwitch();
+}
+
+// Aplica o tema o quanto antes (minimiza o flash) e segue o SO no modo sistema.
+_injetarCssDark();
+_aplicarTema();
+if (window.matchMedia) {
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+    if (_temaSalvo() === "sistema") _aplicarTema();
+  });
+}
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", _montarThemeSwitch);
+} else {
+  _montarThemeSwitch();
+}
