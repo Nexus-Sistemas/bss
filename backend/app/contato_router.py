@@ -145,9 +145,17 @@ def sindicatos(
     id_contato: int,
     usuario: Annotated[UsuarioInfo, Depends(usuario_logado)],
 ):
-    """Sindicatos que o contato administra (aba de relacionamento)."""
+    """
+    Aba Sindicatos:
+      - contato SINDICATO → os sindicatos que ele opera (usuario_sindicato, gerenciável)
+      - contato EMPRESA   → os sindicatos que ABRANGEM os trabalhadores das
+        empresas que ele administra (derivado, só leitura)
+    """
     _exigir_interno(usuario)
-    return contato_repo.listar_sindicatos(id_contato)
+    c = contato_repo.buscar_detalhe(id_contato)
+    if c and c["perfil"] == "sindicato":
+        return contato_repo.listar_sindicatos(id_contato)
+    return contato_repo.listar_sindicatos_cobertura(id_contato)
 
 
 class PerfilIn(BaseModel):

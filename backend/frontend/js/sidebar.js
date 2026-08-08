@@ -129,38 +129,40 @@ function _hrefDoItem(item, perfil) {
   return (item.hrefPorPerfil && item.hrefPorPerfil[perfil]) || item.href;
 }
 
-// Ocultar/mostrar o menu inteiro (estado guardado no navegador).
-const MENU_OCULTO_KEY = "bss_menu_oculto";
+// Menu compacto (recolhe pra só-ícones) — estado guardado no navegador.
+const MENU_COMPACTO_KEY = "bss_menu_compacto";
 
-function _menuOculto() { return localStorage.getItem(MENU_OCULTO_KEY) === "1"; }
+function _menuCompacto() { return localStorage.getItem(MENU_COMPACTO_KEY) === "1"; }
 
-function _aplicarMenuOculto(oculto) {
+// CSS que, no modo compacto, esconde rótulos/textos e centraliza os ícones.
+function _injetarCssMenu() {
+  if (document.getElementById("bss-css-menu")) return;
+  const st = document.createElement("style");
+  st.id = "bss-css-menu";
+  st.textContent = `
+    #sidebar.menu-compacto { width: 4rem; }
+    #sidebar.menu-compacto .menu-marca,
+    #sidebar.menu-compacto .menu-grupo,
+    #sidebar.menu-compacto .menu-label { display: none; }
+    #sidebar.menu-compacto .menu-item { justify-content: center; padding-left: 0; padding-right: 0; }
+    #sidebar.menu-compacto .menu-ico { margin: 0; }
+    #sidebar.menu-compacto .menu-topo { justify-content: center; }
+  `;
+  document.head.appendChild(st);
+}
+
+function _aplicarMenuCompacto(compacto) {
   const aside = document.getElementById("sidebar");
-  const btnAbrir = document.getElementById("btn-abrir-menu");
-  if (aside) aside.classList.toggle("hidden", oculto);
-  if (btnAbrir) btnAbrir.classList.toggle("hidden", !oculto);
+  if (!aside) return;
+  aside.classList.toggle("menu-compacto", compacto);
+  aside.style.width = compacto ? "4rem" : "";   // recolhe a largura mantendo os ícones
 }
 
-/** Botão flutuante (canto superior esquerdo) que reabre o menu quando escondido. */
-function _montarBotaoAbrirMenu() {
-  if (document.getElementById("btn-abrir-menu")) return;
-  const b = document.createElement("button");
-  b.id = "btn-abrir-menu";
-  b.type = "button";
-  b.title = "Mostrar menu";
-  b.onclick = toggleMenu;
-  b.className = "hidden fixed top-3 left-3 z-50 p-2 rounded-lg bg-white border border-slate-200 " +
-                "text-slate-600 hover:bg-slate-50 shadow-sm";
-  b.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">' +
-                '<path stroke-linecap="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>';
-  document.body.appendChild(b);
-}
-
-/** Alterna a visibilidade do menu lateral inteiro e guarda a escolha. */
+/** Alterna entre menu completo e só-ícones, e guarda a escolha. */
 function toggleMenu() {
-  const novo = !_menuOculto();
-  localStorage.setItem(MENU_OCULTO_KEY, novo ? "1" : "0");
-  _aplicarMenuOculto(novo);
+  const novo = !_menuCompacto();
+  localStorage.setItem(MENU_COMPACTO_KEY, novo ? "1" : "0");
+  _aplicarMenuCompacto(novo);
 }
 
 async function renderizarSidebar(slugAtivo) {
@@ -179,13 +181,13 @@ async function renderizarSidebar(slugAtivo) {
 
   let html = `
     <div class="h-full bg-white border-r border-slate-200 px-3 py-4 overflow-y-auto">
-      <div class="flex items-start justify-between px-2 pb-4 mb-2 border-b border-slate-100">
-        <div>
+      <div class="menu-topo flex items-start justify-between px-2 pb-4 mb-2 border-b border-slate-100">
+        <div class="menu-marca">
           <div class="text-xs text-slate-400 uppercase tracking-wider">Sistema</div>
           <div class="text-base font-bold text-slate-800">BSS</div>
           <div class="text-[10px] text-slate-400">Benefício Social Sindical</div>
         </div>
-        <button type="button" onclick="toggleMenu()" title="Ocultar menu"
+        <button type="button" onclick="toggleMenu()" title="Recolher / expandir menu"
                 class="p-1.5 -mr-1 rounded-lg text-slate-400 hover:bg-slate-50 hover:text-slate-700">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7M18 19l-7-7 7-7"/></svg>
@@ -199,7 +201,7 @@ async function renderizarSidebar(slugAtivo) {
     // Grupo sem item visível não vira cabeçalho órfão.
     if (!itens.length) continue;
 
-    html += `<li class="pt-3 pb-1 px-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">${grupo.grupo}</li>`;
+    html += `<li class="menu-grupo pt-3 pb-1 px-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">${grupo.grupo}</li>`;
     for (const item of itens) {
       const ativo = item.slug === slugAtivo;
       const cls = ativo
@@ -208,9 +210,10 @@ async function renderizarSidebar(slugAtivo) {
       const corIcone = ativo ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-700";
       html += `
         <li>
-          <a href="${_hrefDoItem(item, perfil)}" class="flex items-center px-3 py-2 rounded-lg group transition-colors ${cls}">
-            <svg class="w-5 h-5 ${corIcone} flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">${item.icone}</svg>
-            <span class="ms-3 flex-1 whitespace-nowrap">${item.label}</span>
+          <a href="${_hrefDoItem(item, perfil)}" title="${item.label}"
+             class="menu-item flex items-center px-3 py-2 rounded-lg group transition-colors ${cls}">
+            <svg class="menu-ico w-5 h-5 ${corIcone} flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">${item.icone}</svg>
+            <span class="menu-label ms-3 flex-1 whitespace-nowrap">${item.label}</span>
           </a>
         </li>
       `;
@@ -224,7 +227,7 @@ async function renderizarSidebar(slugAtivo) {
 
   aside.innerHTML = html;
 
-  // Botão flutuante de reabrir + aplica o estado guardado (menu oculto ou não).
-  _montarBotaoAbrirMenu();
-  _aplicarMenuOculto(_menuOculto());
+  // Aplica o CSS e o estado guardado (compacto ou completo).
+  _injetarCssMenu();
+  _aplicarMenuCompacto(_menuCompacto());
 }

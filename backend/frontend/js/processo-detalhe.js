@@ -73,7 +73,22 @@ async function carregar() {
     _proc = await apiFetch(`/processos/${id}/detalhe`);
     render(_proc);
     carregarRel("documentos");
+    atualizarBadgeMensagens();
   } catch (e) { falhar(`Erro: ${e.message}`); }
+}
+
+/** Badge da aba Mensagens: não lidas / total (não marca leitura). */
+async function atualizarBadgeMensagens() {
+  try {
+    const c = await apiFetch(`/processos/${getId()}/mensagens/contagem`);
+    const el = document.getElementById("rcount-mensagens");
+    if (el) {
+      el.textContent = `${c.nao_lidas}/${c.total}`;
+      // Destaca quando há não lidas.
+      el.className = "ml-1 px-1.5 py-0.5 rounded-full text-[10px] " +
+        (c.nao_lidas > 0 ? "bg-indigo-100 text-indigo-700 font-semibold" : "bg-slate-100 text-slate-600");
+    }
+  } catch (_) { /* badge é opcional, não quebra a tela */ }
 }
 
 function falhar(msg) {
@@ -269,8 +284,32 @@ function renderArquivo(a) {
         </div>
         ${rejeicao}
       </div>
-      <div class="shrink-0">${pill(txt, cls)}</div>
+      <div class="shrink-0">${EH_INTERNO ? statusSelectDoc(a) : pill(txt, cls)}</div>
     </div>`;
+}
+
+/* Interno: muda o status do documento inline (Em análise / Aceito / Rejeitado). */
+function statusSelectDoc(a) {
+  if (!a.id) return pill(...(ESTADO_ARQ[a.status] || ["—", "bg-slate-100 text-slate-500"]));
+  const opt = (v, t) => `<option value="${v}"${a.status === v ? " selected" : ""}>${t}</option>`;
+  return `<select onchange="mudarStatusDoc(${a.id}, this.value)"
+            class="text-xs border border-slate-300 rounded-lg px-2 py-1 bg-white
+                   focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+            ${opt("pendente", "Em análise")}${opt("aprovado", "Aceito")}${opt("rejeitado", "Rejeitado")}
+          </select>`;
+}
+
+async function mudarStatusDoc(idPd, status) {
+  try {
+    await apiFetch(`/processos/documento/${idPd}/status`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    _relCarregada.delete("documentos");
+    await carregarRel("documentos");   // recarrega o checklist (recalcula estado/badge)
+  } catch (e) {
+    alert("Não foi possível mudar o status: " + e.message);
+  }
 }
 
 function renderChecklist(docs) {
@@ -285,7 +324,11 @@ function renderChecklist(docs) {
   const precisaReenvio = docs.filter(d => d.estado === "rejeitado").length;
   const faltando = obrig.filter(d => d.estado === "nao_enviado").length;
 
-  document.getElementById("rcount-documentos").textContent = `${okObrig}/${obrig.length}`;
+  // Badge: aceitos / enviados (provisório). "Enviados" = tipos com algum arquivo
+  // anexado (estado != nao_enviado); "aceitos" = já aprovados.
+  const enviados = docs.filter(d => d.estado !== "nao_enviado").length;
+  const aceitos = docs.filter(d => d.estado === "aprovado").length;
+  document.getElementById("rcount-documentos").textContent = `${aceitos}/${enviados}`;
 
   // Resumo — regra derivada documentada no schema:
   //   1+ rejeitado → documentacao_pendente | todos obrigatorios aprovados → aprovado_analise

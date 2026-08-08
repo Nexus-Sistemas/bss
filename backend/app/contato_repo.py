@@ -213,6 +213,28 @@ def atualizar(id_contato: int, nome: str, email: str, telefone: str | None,
     return buscar_detalhe(id_contato) if mudou else None
 
 
+def listar_sindicatos_cobertura(id_contato: int) -> list[dict[str, Any]]:
+    """
+    Sindicatos que ABRANGEM os trabalhadores das empresas que este contato
+    administra (derivado, só leitura). Diferente de listar_sindicatos, que são
+    os sindicatos que o contato (perfil sindicato) opera.
+    """
+    sql = """
+        SELECT s.id, s.cnpj, s.razao_social, s.nome_fantasia, s.uf_abrangencia,
+               SUM(es.qtd_trabalhadores) AS qtd_trabalhadores_ativos,
+               COUNT(DISTINCT es.id_empresa) AS qtd_empresas
+          FROM bss.usuario_empresa ue
+          JOIN bss.empresa_sindicato_ativo es ON es.id_empresa = ue.id_empresa
+          JOIN bss.sindicato s ON s.id = es.id_sindicato
+         WHERE ue.id_usuario = %s AND ue.ativo
+         GROUP BY s.id, s.cnpj, s.razao_social, s.nome_fantasia, s.uf_abrangencia
+         ORDER BY qtd_trabalhadores_ativos DESC NULLS LAST, s.razao_social
+    """
+    with get_pg_connection() as conn, conn.cursor() as cur:
+        cur.execute(sql, (id_contato,))
+        return list(cur.fetchall())
+
+
 def definir_perfil(id_contato: int, perfil: str) -> bool:
     """Muda o perfil do contato entre empresa e sindicato. Só troca se o alvo
     hoje é um contato externo (não deixa mexer em interno por engano)."""

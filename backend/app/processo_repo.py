@@ -388,6 +388,71 @@ def listar_pagamentos(id_processo: int) -> list[dict[str, Any]]:
             return list(cur.fetchall())
 
 
+def mudar_status_documento(id_processo_documento: int, status: str, id_avaliador: int,
+                           motivo_codigo: str | None = None,
+                           observacao: str | None = None) -> bool:
+    """
+    Avalia um documento anexado (bss.processo_documento): aprovado/rejeitado/
+    pendente. Ação da equipe interna. Registra quem avaliou e quando.
+    """
+    with get_pg_connection() as conn, conn.cursor() as cur:
+        id_motivo = None
+        if status == "rejeitado" and motivo_codigo:
+            cur.execute("SELECT id FROM bss.motivo_rejeicao_documento WHERE codigo = %s",
+                        (motivo_codigo,))
+            row = cur.fetchone()
+            id_motivo = row["id"] if row else None
+        cur.execute(
+            """
+            UPDATE bss.processo_documento
+               SET status = %s,
+                   id_motivo_rejeicao = CASE WHEN %s = 'rejeitado' THEN %s ELSE NULL END,
+                   observacao = %s,
+                   avaliado_por_id = %s, avaliado_em = NOW(), atualizado_em = NOW()
+             WHERE id = %s
+            """,
+            (status, status, id_motivo, observacao, id_avaliador, id_processo_documento),
+        )
+        ok = cur.rowcount > 0
+        conn.commit()
+    return ok
+
+
+def contar_mensagens(id_processo: int, incluir_internas: bool, eh_interno: bool) -> dict[str, int]:
+    """
+    Total de mensagens visíveis e quantas são "novas pra mim" — pro badge da aba.
+
+    "Não lida" aqui = mensagem do OUTRO lado que chegou DEPOIS da última mensagem
+    do MEU lado (respostas pendentes). É simétrico (serve interno e cliente), não
+    depende de tabela de leitura e — importante — NÃO marca nada como lido (o
+    badge não pode apagar o sino só por carregar a tela).
+    """
+    sql = f"""
+        WITH m AS (
+          SELECT mm.criado_em,
+                 (uu.perfil IS NOT NULL AND uu.perfil NOT IN {PERFIS_INTERNOS}) AS eh_externo
+            FROM bss.processo_mensagem mm
+            LEFT JOIN bss_users uu ON uu.id = mm.id_usuario
+           WHERE mm.id_processo = %(pid)s
+             AND (%(inc)s OR mm.interno = FALSE)
+        )
+        SELECT
+          COUNT(*) AS total,
+          COUNT(*) FILTER (
+            WHERE (CASE WHEN %(interno)s THEN eh_externo ELSE NOT eh_externo END)
+              AND criado_em > COALESCE((
+                SELECT MAX(m2.criado_em) FROM m m2
+                 WHERE (CASE WHEN %(interno)s THEN NOT m2.eh_externo ELSE m2.eh_externo END)
+              ), '-infinity'::timestamptz)
+          ) AS nao_lidas
+          FROM m
+    """
+    with get_pg_connection() as conn, conn.cursor() as cur:
+        cur.execute(sql, {"pid": id_processo, "inc": incluir_internas, "interno": eh_interno})
+        r = cur.fetchone()
+        return {"total": r["total"] or 0, "nao_lidas": r["nao_lidas"] or 0}
+
+
 def listar_mensagens(id_processo: int, incluir_internas: bool = True) -> list[dict[str, Any]]:
     """
     Mensagens do processo (canal cliente ↔ analista).

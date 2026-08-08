@@ -163,6 +163,11 @@ async function carregarRel(qual) {
 /* --------------------------- aba Sindicatos ------------------------------ */
 
 function tabelaSindicatos(linhas) {
+  // Contato empresa: mostra os sindicatos que ABRANGEM os trabalhadores dele
+  // (derivado, só leitura). Contato sindicato: gestão dos vínculos (abaixo).
+  if (!_contato || _contato.perfil !== "sindicato") {
+    return tabelaSindicatosCobertura(linhas);
+  }
   document.getElementById("rcount-sindicatos").textContent = (linhas || []).filter(s => s.acesso_ativo).length;
   const corpo = (linhas || []).map(s => `
     <tr class="border-t border-slate-100 ${s.acesso_ativo ? "" : "opacity-50"}">
@@ -201,6 +206,33 @@ function tabelaSindicatos(linhas) {
         <th class="px-3 py-2 text-center">Acesso</th>
         <th class="px-3 py-2 text-center">Ação</th>
       </tr></thead><tbody>${linhasHtml}</tbody></table></div>`;
+}
+
+/* Contato empresa: sindicatos que abrangem os trabalhadores das empresas dele. */
+function tabelaSindicatosCobertura(linhas) {
+  document.getElementById("rcount-sindicatos").textContent = (linhas || []).length;
+  if (!linhas || !linhas.length) {
+    return `<div class="py-10 text-center text-slate-400 text-sm">
+      Nenhum sindicato — as empresas deste contato não têm trabalhadores ativos
+      filiados a sindicatos (ou o contato não administra empresas).</div>`;
+  }
+  const corpo = linhas.map(s => `
+    <tr class="border-t border-slate-100">
+      <td class="px-5 py-2">${s.razao_social || "—"}
+        ${s.nome_fantasia ? `<div class="text-[11px] text-slate-400">${s.nome_fantasia}</div>` : ""}</td>
+      <td class="px-3 py-2 font-mono text-xs">${fmtCnpj(s.cnpj)}</td>
+      <td class="px-3 py-2 text-xs text-slate-600">${s.uf_abrangencia || "—"}</td>
+      <td class="px-3 py-2 text-right font-mono text-xs">${num(s.qtd_trabalhadores_ativos)}</td>
+      <td class="px-3 py-2 text-right font-mono text-xs text-slate-500">${num(s.qtd_empresas)}</td>
+    </tr>`).join("");
+  return `<div class="overflow-x-auto"><table class="w-full text-sm">
+      <thead class="bg-slate-50 text-slate-500"><tr>
+        <th class="px-5 py-2 text-left">Sindicato</th>
+        <th class="px-3 py-2 text-left">CNPJ</th>
+        <th class="px-3 py-2 text-left">UF</th>
+        <th class="px-3 py-2 text-right">Trabalhadores</th>
+        <th class="px-3 py-2 text-right">Empresas</th>
+      </tr></thead><tbody>${corpo}</tbody></table></div>`;
 }
 
 async function buscarSindicatos() {

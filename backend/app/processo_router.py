@@ -306,6 +306,42 @@ def mensagens(
     return msgs
 
 
+class DocStatusIn(BaseModel):
+    status: str                    # 'pendente' | 'aprovado' | 'rejeitado'
+    motivo: str | None = None      # código do motivo (só rejeitado)
+    observacao: str | None = None
+
+
+@router.put("/documento/{id_processo_documento}/status")
+def mudar_status_documento(
+    id_processo_documento: int,
+    dados: DocStatusIn,
+    usuario: Annotated[UsuarioInfo, Depends(usuario_logado)],
+):
+    """Avalia um documento anexado (aceitar/rejeitar/em análise). Só interno."""
+    if usuario.perfil not in processo_repo.PERFIS_INTERNOS:
+        raise HTTPException(403, "Só a equipe interna avalia documentos")
+    if dados.status not in ("pendente", "aprovado", "rejeitado"):
+        raise HTTPException(400, "Status inválido")
+    ok = processo_repo.mudar_status_documento(
+        id_processo_documento, dados.status, usuario.id, dados.motivo, dados.observacao)
+    if not ok:
+        raise HTTPException(404, "Documento não encontrado")
+    return {"ok": True}
+
+
+@router.get("/{id_processo}/mensagens/contagem")
+def mensagens_contagem(
+    id_processo: int,
+    usuario: Annotated[UsuarioInfo, Depends(usuario_logado)],
+):
+    """Contagem pro badge da aba (total + não lidas). NÃO marca leitura."""
+    _processo_no_escopo(id_processo, usuario)
+    eh_interno = usuario.perfil in processo_repo.PERFIS_INTERNOS
+    return processo_repo.contar_mensagens(
+        id_processo, incluir_internas=eh_interno, eh_interno=eh_interno)
+
+
 class MensagemIn(BaseModel):
     corpo: str
     # Nota interna: conversa da equipe, invisível pro cliente. Só internos
