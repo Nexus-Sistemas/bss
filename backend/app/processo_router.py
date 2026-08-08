@@ -306,6 +306,14 @@ def mensagens(
     return msgs
 
 
+@router.get("/motivos-rejeicao-documento")
+def motivos_rejeicao_documento(
+    usuario: Annotated[UsuarioInfo, Depends(usuario_logado)],
+):
+    """Catálogo de motivos de rejeição (dropdown da avaliação de documento)."""
+    return processo_repo.listar_motivos_rejeicao()
+
+
 class DocStatusIn(BaseModel):
     status: str                    # 'pendente' | 'aprovado' | 'rejeitado'
     motivo: str | None = None      # código do motivo (só rejeitado)

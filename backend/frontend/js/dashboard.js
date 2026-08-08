@@ -84,8 +84,6 @@ async function carregar() {
            `${fmtNum(k.processos_total - k.processos_abertos)} finalizados`, "amber"),
       card("Boletos Pagos", fmtNum(k.boletos_pagos),
            `${fmtNum(k.boletos_total)} no total`, "emerald"),
-      card("Faturamento Total", brl(k.faturamento_total),
-           "boletos pagos histórico", "emerald"),
     ].join("");
 
     // Gráfico boletos mensal

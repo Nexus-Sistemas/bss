@@ -388,6 +388,13 @@ def listar_pagamentos(id_processo: int) -> list[dict[str, Any]]:
             return list(cur.fetchall())
 
 
+def listar_motivos_rejeicao() -> list[dict[str, Any]]:
+    """Catálogo de motivos de rejeição de documento (pro dropdown de avaliação)."""
+    with get_pg_connection() as conn, conn.cursor() as cur:
+        cur.execute("SELECT codigo, nome FROM bss.motivo_rejeicao_documento ORDER BY ordem")
+        return list(cur.fetchall())
+
+
 def mudar_status_documento(id_processo_documento: int, status: str, id_avaliador: int,
                            motivo_codigo: str | None = None,
                            observacao: str | None = None) -> bool:

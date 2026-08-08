@@ -14,6 +14,8 @@ const _relCarregada = new Set();
 const EH_INTERNO = !!u && ["admin", "interno", "analista"].includes(u.perfil);
 
 let _statusOpcoes = null;   // cache do dropdown de status (carrega uma vez)
+let _documentos = [];       // checklist carregado (pra o modal de avaliação achar o doc)
+let _motivosRej = null;     // cache do catálogo de motivos de rejeição
 
 /* ------------------------------- helpers -------------------------------- */
 
@@ -216,7 +218,7 @@ async function carregarRel(qual) {
   alvo.innerHTML = `<div class="py-8 text-center text-slate-400 text-sm">Carregando…</div>`;
   try {
     const dados = await apiFetch(`/processos/${id}/${qual}`);
-    if (qual === "documentos") alvo.innerHTML = renderChecklist(dados);
+    if (qual === "documentos") { _documentos = dados; alvo.innerHTML = renderChecklist(dados); }
     else if (qual === "mensagens") {
       alvo.innerHTML = renderMensagens(dados);
       // Só depois do innerHTML o <select> existe no DOM.
@@ -284,32 +286,119 @@ function renderArquivo(a) {
         </div>
         ${rejeicao}
       </div>
-      <div class="shrink-0">${EH_INTERNO ? statusSelectDoc(a) : pill(txt, cls)}</div>
+      <div class="shrink-0 flex items-center gap-2">
+        ${pill(txt, cls)}
+        ${EH_INTERNO && a.id ? `<button onclick="abrirAvaliacaoDoc(${a.id})" class="text-xs text-indigo-600 hover:underline">Avaliar</button>` : ""}
+      </div>
     </div>`;
 }
 
-/* Interno: muda o status do documento inline (Em análise / Aceito / Rejeitado). */
-function statusSelectDoc(a) {
-  if (!a.id) return pill(...(ESTADO_ARQ[a.status] || ["—", "bg-slate-100 text-slate-500"]));
-  const opt = (v, t) => `<option value="${v}"${a.status === v ? " selected" : ""}>${t}</option>`;
-  return `<select onchange="mudarStatusDoc(${a.id}, this.value)"
-            class="text-xs border border-slate-300 rounded-lg px-2 py-1 bg-white
-                   focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
-            ${opt("pendente", "Em análise")}${opt("aprovado", "Aceito")}${opt("rejeitado", "Rejeitado")}
-          </select>`;
+/* ------------------- AVALIAÇÃO DE DOCUMENTO (interno) -------------------- */
+/* Modal: status + motivo (rejeição) + observação. */
+
+function _acharArquivo(idPd) {
+  for (const t of _documentos || []) {
+    for (const a of t.arquivos || []) if (a.id === idPd) return a;
+  }
+  return null;
 }
 
-async function mudarStatusDoc(idPd, status) {
-  try {
-    await apiFetch(`/processos/documento/${idPd}/status`, {
-      method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
-    });
-    _relCarregada.delete("documentos");
-    await carregarRel("documentos");   // recarrega o checklist (recalcula estado/badge)
-  } catch (e) {
-    alert("Não foi possível mudar o status: " + e.message);
+function _garantirModalDoc() {
+  if (document.getElementById("modal-doc")) return;
+  const m = document.createElement("div");
+  m.id = "modal-doc";
+  m.className = "hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4";
+  m.innerHTML = `
+    <div class="bg-white rounded-xl shadow-xl max-w-md w-full flex flex-col">
+      <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-3">
+        <h3 class="font-semibold text-slate-800">Avaliar documento</h3>
+        <button onclick="fecharAvaliacaoDoc()" class="text-slate-400 hover:text-slate-700 text-xl leading-none">&times;</button>
+      </div>
+      <div class="px-5 py-4 space-y-3 text-sm">
+        <input type="hidden" id="doc-id">
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Status</label>
+          <select id="doc-status" onchange="_toggleMotivoDoc()" class="w-full border border-slate-300 rounded-lg px-2 py-2 bg-white">
+            <option value="pendente">Em análise</option>
+            <option value="aprovado">Aceito</option>
+            <option value="rejeitado">Rejeitado</option>
+          </select>
+        </div>
+        <div id="doc-wrap-motivo">
+          <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Motivo da rejeição</label>
+          <select id="doc-motivo" class="w-full border border-slate-300 rounded-lg px-2 py-2 bg-white">
+            <option value="">Selecione…</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Observação</label>
+          <textarea id="doc-obs" rows="3" placeholder="Nota do analista (opcional)"
+                    class="w-full border border-slate-300 rounded-lg px-3 py-2"></textarea>
+        </div>
+      </div>
+      <div class="px-5 py-4 border-t border-slate-100 flex items-center gap-3">
+        <button onclick="salvarAvaliacaoDoc()" id="doc-salvar" class="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium">Salvar</button>
+        <button onclick="fecharAvaliacaoDoc()" class="px-4 py-2 text-sm border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50">Cancelar</button>
+        <span id="doc-msg" class="text-xs"></span>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+}
+
+async function _carregarMotivos() {
+  const sel = document.getElementById("doc-motivo");
+  if (!sel) return;
+  if (!_motivosRej) {
+    try { _motivosRej = await apiFetch("/processos/motivos-rejeicao-documento"); }
+    catch (_) { _motivosRej = []; }
   }
+  sel.innerHTML = `<option value="">Selecione…</option>` +
+    _motivosRej.map(m => `<option value="${m.codigo}">${escHtml(m.nome)}</option>`).join("");
+}
+
+function _toggleMotivoDoc() {
+  const rej = document.getElementById("doc-status").value === "rejeitado";
+  document.getElementById("doc-wrap-motivo").style.display = rej ? "" : "none";
+}
+
+async function abrirAvaliacaoDoc(idPd) {
+  _garantirModalDoc();
+  await _carregarMotivos();
+  const a = _acharArquivo(idPd);
+  document.getElementById("doc-id").value = idPd;
+  document.getElementById("doc-status").value = a?.status || "pendente";
+  document.getElementById("doc-motivo").value = a?.motivo_rejeicao_codigo || "";
+  document.getElementById("doc-obs").value = a?.observacao || "";
+  document.getElementById("doc-msg").textContent = "";
+  _toggleMotivoDoc();
+  document.getElementById("modal-doc").classList.remove("hidden");
+}
+
+function fecharAvaliacaoDoc() {
+  document.getElementById("modal-doc").classList.add("hidden");
+}
+
+async function salvarAvaliacaoDoc() {
+  const btn = document.getElementById("doc-salvar");
+  const msg = document.getElementById("doc-msg");
+  const status = document.getElementById("doc-status").value;
+  const corpo = {
+    status,
+    motivo: status === "rejeitado" ? (document.getElementById("doc-motivo").value || null) : null,
+    observacao: document.getElementById("doc-obs").value.trim() || null,
+  };
+  btn.disabled = true; msg.textContent = "Salvando…"; msg.className = "text-xs text-slate-400";
+  try {
+    await apiFetch(`/processos/documento/${document.getElementById("doc-id").value}/status`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(corpo),
+    });
+    fecharAvaliacaoDoc();
+    _relCarregada.delete("documentos");
+    await carregarRel("documentos");
+  } catch (e) {
+    msg.textContent = e.message; msg.className = "text-xs text-rose-600";
+  } finally { btn.disabled = false; }
 }
 
 function renderChecklist(docs) {
