@@ -307,19 +307,30 @@ function _injetarCssDark() {
   const st = document.createElement("style");
   st.id = "bss-css-dark";
   st.textContent = `
-    html.dark body, html.dark .bg-slate-50, html.dark .bg-gray-50 { background-color:#0f172a; }
-    html.dark .bg-white { background-color:#1e293b; }
-    html.dark .bg-slate-100, html.dark .bg-gray-100 { background-color:#334155; }
-    html.dark .text-slate-900, html.dark .text-slate-800, html.dark .text-gray-900, html.dark .text-gray-800 { color:#e2e8f0; }
+    /* Tokens do dark mode — paleta do nexus-ui (design/#leia-me), tema .usar-dark */
+    html.dark {
+      --u-bg:#0a1628; --u-panel:#0f2a4d; --u-panel2:#14345c;
+      --u-fg:#f3f5f8; --u-muted:#98a2b1;
+      --u-border:#ffffff1f; --u-input:#ffffff0a; --u-link:#7cc4f2;
+      color-scheme: dark;
+    }
+    html.dark body, html.dark .bg-slate-50, html.dark .bg-gray-50 { background-color:var(--u-bg); }
+    html.dark .bg-white { background-color:var(--u-panel); }
+    html.dark .bg-slate-100, html.dark .bg-gray-100 { background-color:var(--u-panel2); }
+    html.dark .text-slate-900, html.dark .text-slate-800, html.dark .text-gray-900, html.dark .text-gray-800 { color:var(--u-fg); }
     html.dark .text-slate-700, html.dark .text-slate-600, html.dark .text-gray-700, html.dark .text-gray-600 { color:#cbd5e1; }
-    html.dark .text-slate-500, html.dark .text-slate-400, html.dark .text-gray-500, html.dark .text-gray-400 { color:#94a3b8; }
+    html.dark .text-slate-500, html.dark .text-slate-400, html.dark .text-gray-500, html.dark .text-gray-400 { color:var(--u-muted); }
     html.dark .border-slate-200, html.dark .border-slate-100, html.dark .border-slate-300,
-      html.dark .border-gray-200, html.dark .border-gray-100 { border-color:#334155; }
+      html.dark .border-gray-200, html.dark .border-gray-100 { border-color:var(--u-border); }
     html.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
-      html.dark .divide-slate-200 > :not([hidden]) ~ :not([hidden]) { border-color:#334155; }
-    html.dark input, html.dark select, html.dark textarea { background-color:#1e293b; color:#e2e8f0; border-color:#334155; }
+      html.dark .divide-slate-200 > :not([hidden]) ~ :not([hidden]) { border-color:var(--u-border); }
+    html.dark input, html.dark select, html.dark textarea { background-color:var(--u-input); color:var(--u-fg); border-color:var(--u-border); }
     html.dark .hover\\:bg-slate-50:hover, html.dark .hover\\:bg-slate-100:hover,
-      html.dark .hover\\:bg-gray-50:hover, html.dark .hover\\:bg-gray-100:hover { background-color:#334155; }
+      html.dark .hover\\:bg-gray-50:hover, html.dark .hover\\:bg-gray-100:hover { background-color:var(--u-panel2); }
+    /* Links/ênfase — o que ficava escuro-sobre-escuro. Só os tons de LINK (600/700),
+       não os -800/-900 das badges (que ficam sobre fundo claro pastel). */
+    html.dark .text-indigo-700, html.dark .text-indigo-600 { color:var(--u-link); }
+    html.dark .text-rose-600, html.dark .text-rose-700 { color:#fda4af; }
   `;
   document.head.appendChild(st);
 }
