@@ -168,7 +168,7 @@ function tabelaSindicatos(linhas) {
   if (!_contato || _contato.perfil !== "sindicato") {
     return tabelaSindicatosCobertura(linhas);
   }
-  document.getElementById("rcount-sindicatos").textContent = (linhas || []).filter(s => s.acesso_ativo).length;
+  document.getElementById("rcount-sindicatos").textContent = (linhas || []).length;
   const corpo = (linhas || []).map(s => `
     <tr class="border-t border-slate-100 ${s.acesso_ativo ? "" : "opacity-50"}">
       <td class="px-5 py-2">${s.razao_social || "—"}

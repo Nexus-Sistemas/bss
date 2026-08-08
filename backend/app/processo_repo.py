@@ -396,22 +396,25 @@ def mudar_status_documento(id_processo_documento: int, status: str, id_avaliador
     pendente. Ação da equipe interna. Registra quem avaliou e quando.
     """
     with get_pg_connection() as conn, conn.cursor() as cur:
+        # Motivo só faz sentido em rejeitado; nos demais, limpa (NULL).
         id_motivo = None
         if status == "rejeitado" and motivo_codigo:
             cur.execute("SELECT id FROM bss.motivo_rejeicao_documento WHERE codigo = %s",
                         (motivo_codigo,))
             row = cur.fetchone()
             id_motivo = row["id"] if row else None
+        # Cast explícito no motivo: sem ele, parâmetro NULL sem tipo faz o
+        # Postgres estourar ("could not determine data type").
         cur.execute(
             """
             UPDATE bss.processo_documento
                SET status = %s,
-                   id_motivo_rejeicao = CASE WHEN %s = 'rejeitado' THEN %s ELSE NULL END,
+                   id_motivo_rejeicao = %s::smallint,
                    observacao = %s,
                    avaliado_por_id = %s, avaliado_em = NOW(), atualizado_em = NOW()
              WHERE id = %s
             """,
-            (status, status, id_motivo, observacao, id_avaliador, id_processo_documento),
+            (status, id_motivo, observacao, id_avaliador, id_processo_documento),
         )
         ok = cur.rowcount > 0
         conn.commit()

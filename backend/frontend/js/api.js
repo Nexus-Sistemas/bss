@@ -316,7 +316,8 @@ function _injetarCssDark() {
     }
     html.dark body, html.dark .bg-slate-50, html.dark .bg-gray-50 { background-color:var(--u-bg); }
     html.dark .bg-white { background-color:var(--u-panel); }
-    html.dark .bg-slate-100, html.dark .bg-gray-100 { background-color:var(--u-panel2); }
+    html.dark .bg-slate-100, html.dark .bg-gray-100,
+      html.dark .bg-slate-200, html.dark .bg-gray-200 { background-color:var(--u-panel2); }
     html.dark .text-slate-900, html.dark .text-slate-800, html.dark .text-gray-900, html.dark .text-gray-800 { color:var(--u-fg); }
     html.dark .text-slate-700, html.dark .text-slate-600, html.dark .text-gray-700, html.dark .text-gray-600 { color:#cbd5e1; }
     html.dark .text-slate-500, html.dark .text-slate-400, html.dark .text-gray-500, html.dark .text-gray-400 { color:var(--u-muted); }
