@@ -129,6 +129,31 @@ function _hrefDoItem(item, perfil) {
   return (item.hrefPorPerfil && item.hrefPorPerfil[perfil]) || item.href;
 }
 
+// Sanfona: estado colapsado dos grupos guardado no navegador.
+const MENU_COLAPSO_KEY = "bss_menu_colapsado";
+function _lerColapsados() {
+  try { return new Set(JSON.parse(localStorage.getItem(MENU_COLAPSO_KEY) || "[]")); }
+  catch (_) { return new Set(); }
+}
+function _salvarColapsados(set) {
+  localStorage.setItem(MENU_COLAPSO_KEY, JSON.stringify([...set]));
+}
+function _chaveGrupo(nome) {
+  return nome.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, "-").toLowerCase();
+}
+/** Abre/fecha um grupo do menu e guarda a escolha. */
+function toggleGrupo(chave) {
+  const cont = document.getElementById("grp-" + chave);
+  const chev = document.getElementById("chev-" + chave);
+  if (!cont) return;
+  const colapsar = !cont.classList.contains("hidden");
+  cont.classList.toggle("hidden", colapsar);
+  if (chev) chev.classList.toggle("-rotate-90", colapsar);
+  const set = _lerColapsados();
+  if (colapsar) set.add(chave); else set.delete(chave);
+  _salvarColapsados(set);
+}
+
 async function renderizarSidebar(slugAtivo) {
   const aside = document.getElementById("sidebar");
   if (!aside) return;
@@ -143,6 +168,8 @@ async function renderizarSidebar(slugAtivo) {
     perfil = "";
   }
 
+  const colapsados = _lerColapsados();
+
   let html = `
     <div class="h-full bg-white border-r border-slate-200 px-3 py-4 overflow-y-auto">
       <div class="px-2 pb-4 mb-2 border-b border-slate-100">
@@ -150,7 +177,7 @@ async function renderizarSidebar(slugAtivo) {
         <div class="text-base font-bold text-slate-800">BSS</div>
         <div class="text-[10px] text-slate-400">Benefício Social Sindical</div>
       </div>
-      <ul class="space-y-1 font-medium">
+      <nav class="space-y-1 font-medium">
   `;
 
   for (const grupo of MENU) {
@@ -158,7 +185,22 @@ async function renderizarSidebar(slugAtivo) {
     // Grupo sem item visível não vira cabeçalho órfão.
     if (!itens.length) continue;
 
-    html += `<li class="pt-3 pb-1 px-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">${grupo.grupo}</li>`;
+    const chave = _chaveGrupo(grupo.grupo);
+    const temAtivo = itens.some((i) => i.slug === slugAtivo);
+    // O grupo da tela atual fica sempre aberto; os demais respeitam a escolha.
+    const colapsado = colapsados.has(chave) && !temAtivo;
+
+    html += `
+      <div>
+        <button type="button" onclick="toggleGrupo('${chave}')"
+                class="w-full flex items-center justify-between pt-3 pb-1 px-2 text-xs font-semibold text-slate-400 uppercase tracking-wider hover:text-slate-600 select-none">
+          <span>${grupo.grupo}</span>
+          <svg id="chev-${chave}" class="w-3.5 h-3.5 transition-transform ${colapsado ? "-rotate-90" : ""}"
+               fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </button>
+        <div id="grp-${chave}" class="space-y-1 ${colapsado ? "hidden" : ""}">
+    `;
     for (const item of itens) {
       const ativo = item.slug === slugAtivo;
       const cls = ativo
@@ -166,18 +208,17 @@ async function renderizarSidebar(slugAtivo) {
         : "text-slate-600 hover:bg-slate-50 hover:text-slate-900";
       const corIcone = ativo ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-700";
       html += `
-        <li>
-          <a href="${_hrefDoItem(item, perfil)}" class="flex items-center px-3 py-2 rounded-lg group transition-colors ${cls}">
-            <svg class="w-5 h-5 ${corIcone} flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">${item.icone}</svg>
-            <span class="ms-3 flex-1 whitespace-nowrap">${item.label}</span>
-          </a>
-        </li>
+        <a href="${_hrefDoItem(item, perfil)}" class="flex items-center px-3 py-2 rounded-lg group transition-colors ${cls}">
+          <svg class="w-5 h-5 ${corIcone} flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">${item.icone}</svg>
+          <span class="ms-3 flex-1 whitespace-nowrap">${item.label}</span>
+        </a>
       `;
     }
+    html += `</div></div>`;
   }
 
   html += `
-      </ul>
+      </nav>
     </div>
   `;
 
