@@ -66,10 +66,21 @@ async function buscarCpf() {
 async function carregarTipos() {
   const sel = document.getElementById("b-tipo");
   if (sel.dataset.carregado) return;
-  const tipos = await apiFetch("/tipos-beneficio");
-  sel.innerHTML = `<option value="">Selecione…</option>` +
+  let tipos = await apiFetch("/tipos-beneficio");
+
+  // Funerária só abre "Acionamento Funeral" — trava o seletor nessa opção.
+  const u = (typeof usuarioAtual === "function") ? usuarioAtual() : null;
+  const soFuneral = u && u.perfil === "funeraria";
+  if (soFuneral) tipos = tipos.filter(t => t.codigo === "acionamento_funeral");
+
+  sel.innerHTML = (soFuneral ? "" : `<option value="">Selecione…</option>`) +
     tipos.map(t => `<option value="${t.codigo}">${esc(t.nome)}</option>`).join("");
   sel.dataset.carregado = "1";
+
+  if (soFuneral && tipos.length) {
+    sel.value = tipos[0].codigo;   // pré-seleciona Acionamento Funeral
+    carregarTipo();                // já monta o form desse tipo
+  }
 }
 
 async function carregarTipo() {

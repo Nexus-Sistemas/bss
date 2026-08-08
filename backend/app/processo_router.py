@@ -137,6 +137,10 @@ async def criar(
         raise HTTPException(422, f"Não é possível abrir benefício: {motivo}")
 
     # 3) Tipo + o que ele exige
+    #    Funerária só abre "Acionamento Funeral" (defesa no servidor, além do
+    #    seletor travado no form).
+    if usuario.perfil == "funeraria" and d.get("tipo") != "acionamento_funeral":
+        raise HTTPException(403, "Funerária só pode abrir Acionamento Funeral")
     tipo = tipo_beneficio_repo.form_do_tipo(d.get("tipo", ""))
     if not tipo:
         raise HTTPException(400, "Tipo de benefício inválido")
