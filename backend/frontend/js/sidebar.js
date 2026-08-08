@@ -129,29 +129,38 @@ function _hrefDoItem(item, perfil) {
   return (item.hrefPorPerfil && item.hrefPorPerfil[perfil]) || item.href;
 }
 
-// Sanfona: estado colapsado dos grupos guardado no navegador.
-const MENU_COLAPSO_KEY = "bss_menu_colapsado";
-function _lerColapsados() {
-  try { return new Set(JSON.parse(localStorage.getItem(MENU_COLAPSO_KEY) || "[]")); }
-  catch (_) { return new Set(); }
+// Ocultar/mostrar o menu inteiro (estado guardado no navegador).
+const MENU_OCULTO_KEY = "bss_menu_oculto";
+
+function _menuOculto() { return localStorage.getItem(MENU_OCULTO_KEY) === "1"; }
+
+function _aplicarMenuOculto(oculto) {
+  const aside = document.getElementById("sidebar");
+  const btnAbrir = document.getElementById("btn-abrir-menu");
+  if (aside) aside.classList.toggle("hidden", oculto);
+  if (btnAbrir) btnAbrir.classList.toggle("hidden", !oculto);
 }
-function _salvarColapsados(set) {
-  localStorage.setItem(MENU_COLAPSO_KEY, JSON.stringify([...set]));
+
+/** Botão flutuante (canto superior esquerdo) que reabre o menu quando escondido. */
+function _montarBotaoAbrirMenu() {
+  if (document.getElementById("btn-abrir-menu")) return;
+  const b = document.createElement("button");
+  b.id = "btn-abrir-menu";
+  b.type = "button";
+  b.title = "Mostrar menu";
+  b.onclick = toggleMenu;
+  b.className = "hidden fixed top-3 left-3 z-50 p-2 rounded-lg bg-white border border-slate-200 " +
+                "text-slate-600 hover:bg-slate-50 shadow-sm";
+  b.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">' +
+                '<path stroke-linecap="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>';
+  document.body.appendChild(b);
 }
-function _chaveGrupo(nome) {
-  return nome.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, "-").toLowerCase();
-}
-/** Abre/fecha um grupo do menu e guarda a escolha. */
-function toggleGrupo(chave) {
-  const cont = document.getElementById("grp-" + chave);
-  const chev = document.getElementById("chev-" + chave);
-  if (!cont) return;
-  const colapsar = !cont.classList.contains("hidden");
-  cont.classList.toggle("hidden", colapsar);
-  if (chev) chev.classList.toggle("-rotate-90", colapsar);
-  const set = _lerColapsados();
-  if (colapsar) set.add(chave); else set.delete(chave);
-  _salvarColapsados(set);
+
+/** Alterna a visibilidade do menu lateral inteiro e guarda a escolha. */
+function toggleMenu() {
+  const novo = !_menuOculto();
+  localStorage.setItem(MENU_OCULTO_KEY, novo ? "1" : "0");
+  _aplicarMenuOculto(novo);
 }
 
 async function renderizarSidebar(slugAtivo) {
@@ -168,16 +177,21 @@ async function renderizarSidebar(slugAtivo) {
     perfil = "";
   }
 
-  const colapsados = _lerColapsados();
-
   let html = `
     <div class="h-full bg-white border-r border-slate-200 px-3 py-4 overflow-y-auto">
-      <div class="px-2 pb-4 mb-2 border-b border-slate-100">
-        <div class="text-xs text-slate-400 uppercase tracking-wider">Sistema</div>
-        <div class="text-base font-bold text-slate-800">BSS</div>
-        <div class="text-[10px] text-slate-400">Benefício Social Sindical</div>
+      <div class="flex items-start justify-between px-2 pb-4 mb-2 border-b border-slate-100">
+        <div>
+          <div class="text-xs text-slate-400 uppercase tracking-wider">Sistema</div>
+          <div class="text-base font-bold text-slate-800">BSS</div>
+          <div class="text-[10px] text-slate-400">Benefício Social Sindical</div>
+        </div>
+        <button type="button" onclick="toggleMenu()" title="Ocultar menu"
+                class="p-1.5 -mr-1 rounded-lg text-slate-400 hover:bg-slate-50 hover:text-slate-700">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7M18 19l-7-7 7-7"/></svg>
+        </button>
       </div>
-      <nav class="space-y-1 font-medium">
+      <ul class="space-y-1 font-medium">
   `;
 
   for (const grupo of MENU) {
@@ -185,22 +199,7 @@ async function renderizarSidebar(slugAtivo) {
     // Grupo sem item visível não vira cabeçalho órfão.
     if (!itens.length) continue;
 
-    const chave = _chaveGrupo(grupo.grupo);
-    const temAtivo = itens.some((i) => i.slug === slugAtivo);
-    // O grupo da tela atual fica sempre aberto; os demais respeitam a escolha.
-    const colapsado = colapsados.has(chave) && !temAtivo;
-
-    html += `
-      <div>
-        <button type="button" onclick="toggleGrupo('${chave}')"
-                class="w-full flex items-center justify-between pt-3 pb-1 px-2 text-xs font-semibold text-slate-400 uppercase tracking-wider hover:text-slate-600 select-none">
-          <span>${grupo.grupo}</span>
-          <svg id="chev-${chave}" class="w-3.5 h-3.5 transition-transform ${colapsado ? "-rotate-90" : ""}"
-               fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-        </button>
-        <div id="grp-${chave}" class="space-y-1 ${colapsado ? "hidden" : ""}">
-    `;
+    html += `<li class="pt-3 pb-1 px-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">${grupo.grupo}</li>`;
     for (const item of itens) {
       const ativo = item.slug === slugAtivo;
       const cls = ativo
@@ -208,19 +207,24 @@ async function renderizarSidebar(slugAtivo) {
         : "text-slate-600 hover:bg-slate-50 hover:text-slate-900";
       const corIcone = ativo ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-700";
       html += `
-        <a href="${_hrefDoItem(item, perfil)}" class="flex items-center px-3 py-2 rounded-lg group transition-colors ${cls}">
-          <svg class="w-5 h-5 ${corIcone} flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">${item.icone}</svg>
-          <span class="ms-3 flex-1 whitespace-nowrap">${item.label}</span>
-        </a>
+        <li>
+          <a href="${_hrefDoItem(item, perfil)}" class="flex items-center px-3 py-2 rounded-lg group transition-colors ${cls}">
+            <svg class="w-5 h-5 ${corIcone} flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">${item.icone}</svg>
+            <span class="ms-3 flex-1 whitespace-nowrap">${item.label}</span>
+          </a>
+        </li>
       `;
     }
-    html += `</div></div>`;
   }
 
   html += `
-      </nav>
+      </ul>
     </div>
   `;
 
   aside.innerHTML = html;
+
+  // Botão flutuante de reabrir + aplica o estado guardado (menu oculto ou não).
+  _montarBotaoAbrirMenu();
+  _aplicarMenuOculto(_menuOculto());
 }
